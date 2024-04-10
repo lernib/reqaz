@@ -1,0 +1,16 @@
+{
+    "name": "@workspace/cli",
+    "private": true,
+    "main": "build/index.js",
+    "type": "module",
+    "devDependencies": {
+        "@types/express": "^4.17.21",
+        "@types/node": "^20.12.7"
+    },
+    "scripts": {
+        "build": "tsc"
+    },
+    "dependencies": {
+        "express": "^4.19.2"
+    }
+}
