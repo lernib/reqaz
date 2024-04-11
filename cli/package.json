@@ -11,6 +11,7 @@
         "build": "tsc"
     },
     "dependencies": {
-        "express": "^4.19.2"
+        "express": "^4.19.2",
+        "oxide.ts": "^1.1.0"
     }
 }
