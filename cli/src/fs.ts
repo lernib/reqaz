@@ -1,6 +1,10 @@
 import * as fs from "fs/promises"
 import * as path from "path"
 import { Result, Ok, Err } from "oxide.ts"
+import {
+    errorTypeErrorEncapsulate,
+    ErrorTypeError
+} from "./utils.js"
 
 
 const CWD = process.cwd()
@@ -14,7 +18,7 @@ async function pathExists(path: string): Promise<boolean> {
     }
 }
 
-async function pathIsDirectory(path: string): Promise<boolean> {
+export async function pathIsDirectory(path: string): Promise<boolean> {
     if (await pathExists(path)) {
         let stat = await fs.stat(path)
 
@@ -24,15 +28,21 @@ async function pathIsDirectory(path: string): Promise<boolean> {
     return false
 }
 
-async function loadFile(locator: string): Promise<Result<string, Error>> {
-    return await Result.safe(fs.readFile(path.join(CWD, locator), 'utf-8'))
+export async function loadFile(locator: string): Promise<Result<string, ReadFileError>> {
+    const p = path.join(CWD, locator)
+
+    if (!await pathExists(p)) {
+        return Err(ReadFileErrorCode.FILE_NOT_FOUND)
+    }
+
+    return (await Result.safe(fs.readFile(p, 'utf-8'))).mapErr(errorTypeErrorEncapsulate)
 }
 
-async function loadSrcFile(locator: string): Promise<Result<string, Error>> {
+export async function loadSrcFile(locator: string): Promise<Result<string, ReadFileError>> {
     return await loadFile(path.join('src', locator))
 }
 
-export {
-    pathExists, pathIsDirectory,
-    loadFile, loadSrcFile
+export type ReadFileError = ErrorTypeError | ReadFileErrorCode
+export enum ReadFileErrorCode {
+    FILE_NOT_FOUND
 }

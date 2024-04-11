@@ -1,5 +1,7 @@
 import createExpress from "express"
-import { resolveSource } from "./source.js"
+import {
+    resolveSource
+} from "./source.js"
 
 
 const PORT = 5000
@@ -9,11 +11,17 @@ app.get('*', async (req, res) => {
     let url = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`)
     let source = await resolveSource(url);
 
-    if (source.mime)
-        res.setHeader('Content-Type', source.mime)
+    if ('status' in source) {
+        // Invalid source
+        res.sendStatus(source.status)
+    } else {
+        // Valid source
+        if (source.mime)
+            res.setHeader('Content-Type', source.mime)
 
-    res.status(source.status)
-        .send(source.body)
+        res.status(200)
+            .send(source.body)
+    }
 })
 
 app.listen(PORT, () => {
