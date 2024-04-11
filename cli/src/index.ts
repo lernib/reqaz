@@ -9,6 +9,9 @@ app.get('*', async (req, res) => {
     let url = new URL(`${req.protocol}://${req.get('host')}${req.originalUrl}`)
     let source = await resolveSource(url);
 
+    if (source.mime)
+        res.setHeader('Content-Type', source.mime)
+
     res.status(source.status)
         .send(source.body)
 })
