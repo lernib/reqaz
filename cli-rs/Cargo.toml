@@ -4,3 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+color-eyre = "0.6.3"
+eyre = "0.6.12"
+http-body-util = "0.1.1"
+hyper = { version = "1.2.0", features = ["http1", "server"] }
+hyper-util = { version = "0.1.3", features = ["tokio"] }
+mime = "0.3.17"
+tokio = { version = "1.37.0", features = ["macros", "fs", "net", "rt-multi-thread"] }
