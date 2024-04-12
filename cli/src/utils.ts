@@ -29,8 +29,8 @@ function colorStatus(status: number): string {
     }
 }
 
-export function logSourceRequest(status: number, locator: string) {
+export function logSourceRequest(status: number, url: URL) {
     const statusStr = colorStatus(status)
 
-    console.info(`[${statusStr}] ${locator}`)
+    console.info(`[${statusStr}] ${url.pathname}`)
 }

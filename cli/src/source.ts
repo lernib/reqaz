@@ -1,11 +1,11 @@
-import { loadFile, ReadFileErrorCode } from "./fs.js"
+import { getPathFromUrl, loadFile, ReadFileErrorCode } from "./fs.js"
 import { processHtml, ProcessHtmlErrorCode } from "./html.js"
 import { lookup as mimeLookup } from "mime-types"
 import * as path from 'path'
 
 
 interface BasicSource {
-    locator: string
+    url: URL
 }
 
 export interface ValidSource extends BasicSource {
@@ -20,21 +20,14 @@ export interface InvalidSource extends BasicSource {
 type Source = ValidSource | InvalidSource
 
 async function resolveSource(url: URL): Promise<Source> {
-    const p = url.pathname.slice(1)
-    let locator: string
+    let p = await getPathFromUrl(url)
 
-    if (p == '') {
-        locator = 'src/pages/index.html'
-    } else {
-        locator = `src/static/${p}`
-    }
-
-    const mime = mimeLookup(path.extname(locator)) || undefined
+    const mime = mimeLookup(p.ext) || undefined
     const basics: BasicSource = {
-        locator
+        url
     }
 
-    const contents = await loadFile(locator)
+    const contents = await loadFile(p)
 
     if (contents.isErr()) {
         // safe
@@ -54,7 +47,7 @@ async function resolveSource(url: URL): Promise<Source> {
         // safe
         let res = contents.unwrap()
    
-        if (locator.endsWith('.html')) {
+        if (p.ext == '.html') {
             const processed = await processHtml(url, res)
 
             if (processed.isErr()) {

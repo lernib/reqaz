@@ -5,6 +5,7 @@ import {
 } from "./source.js"
 import { logSourceRequest } from "./utils.js"
 
+// typescript was a mistake
 
 const PORT = 5000
 const app = createExpress()
@@ -20,7 +21,7 @@ app.get('*', async (req, res) => {
 
     if ('status' in source) {
         // Invalid source
-        logSourceRequest(source.status, source.locator)
+        logSourceRequest(source.status, source.url)
         res.sendStatus(source.status)
     } else {
         // Valid source
@@ -30,11 +31,11 @@ app.get('*', async (req, res) => {
         const sourceEtag = etag(source.body)
         res.setHeader('ETag', sourceEtag)
         if (req.headers["if-none-match"] == sourceEtag) {
-            logSourceRequest(304, source.locator)
+            logSourceRequest(304, source.url)
 
             res.sendStatus(304)
         } else {
-            logSourceRequest(200, source.locator)
+            logSourceRequest(200, source.url)
 
             res.status(200)
                 .send(source.body)
