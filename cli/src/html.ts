@@ -27,8 +27,6 @@ export async function processHtml(url: URL, html: string): Promise<Result<string
 
     const nib_imports = document.getElementsByTagName('nib-import')
 
-    console.log(`${nib_imports.length} imports found`)
-
     for (let i = 0; i < nib_imports.length; i++) {
         const nib_item = nib_imports[i]
 
