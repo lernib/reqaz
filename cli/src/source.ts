@@ -1,4 +1,5 @@
 import { loadFile, ReadFileErrorCode } from "./fs.js"
+import { processHtml, ProcessHtmlErrorCode } from "./html.js"
 import { lookup as mimeLookup } from "mime-types"
 import * as path from 'path'
 import chalk from "chalk"
@@ -10,7 +11,7 @@ export interface ValidSource {
 }
 
 export interface InvalidSource {
-    status: number
+    status: 404 | 500
 }
 
 type Source = ValidSource | InvalidSource
@@ -49,29 +50,55 @@ async function resolveSource(url: URL): Promise<Source> {
 
     const contents = await loadFile(locator)
 
-    return contents.mapOrElse(
-        (e) => {
-            let status = 500
+    if (contents.isErr()) {
+        // safe
+        const e = contents.unwrapErr()
 
-            if (e == ReadFileErrorCode.FILE_NOT_FOUND) {
-                status = 404
-            }
+        let status = 500
 
-            logSourceRequest(status, url.pathname)
-            
-            return {
-                status
-            } as Source
-        },
-        (res) => {
-            logSourceRequest(200, url.pathname)
-
-            return {
-                body: res,
-                mime
-            } as Source
+        if (e == ReadFileErrorCode.FILE_NOT_FOUND) {
+            status = 404
         }
-    )
+
+        logSourceRequest(status, url.pathname)
+        
+        return {
+            status
+        } as Source
+    } else {
+        // safe
+        let res = contents.unwrap()
+   
+        if (locator.endsWith('.html')) {
+            const processed = await processHtml(url, res)
+
+            if (processed.isErr()) {
+                const e = processed.unwrapErr()
+
+                switch (e) {
+                    case ProcessHtmlErrorCode.SOURCE_NOT_FOUND:
+                        return {
+                            status: 404
+                        }
+                    case ProcessHtmlErrorCode.MISSING_HREF:
+                    case ProcessHtmlErrorCode.NO_HREF_ELEMENT:
+                    case ProcessHtmlErrorCode.SOURCE_INTERNAL:
+                        return {
+                            status: 500
+                        }
+                }
+            } else {
+                res = processed.unwrap()
+            }
+        }
+
+        logSourceRequest(200, url.pathname)
+
+        return {
+            body: res,
+            mime
+        } as Source
+    }
 }
 
 export { resolveSource }

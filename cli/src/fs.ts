@@ -42,7 +42,7 @@ export async function loadSrcFile(locator: string): Promise<Result<string, ReadF
     return await loadFile(path.join('src', locator))
 }
 
-export type ReadFileError = ErrorTypeError | ReadFileErrorCode
+type ReadFileError = ErrorTypeError | ReadFileErrorCode
 export enum ReadFileErrorCode {
     FILE_NOT_FOUND
 }
