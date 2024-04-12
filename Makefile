@@ -1,19 +1,25 @@
-CLI_DIR=cli
-CLI_MAIN=$(abspath $(CLI_DIR)/build/index.js)
-CLI_SOURCES=\
-	$(CLI_DIR)/package.json \
-	$(CLI_DIR)/tsconfig.json \
-	$(shell find $(CLI_DIR)/src -type f -name '*.ts')
+OLD_CLI_DIR=cli
+OLD_CLI_MAIN=$(abspath $(OLD_CLI_DIR)/build/index.js)
+OLD_CLI_SOURCES=\
+	$(OLD_CLI_DIR)/package.json \
+	$(OLD_CLI_DIR)/tsconfig.json \
+	$(shell find $(OLD_CLI_DIR)/src -type f -name '*.ts')
+
 
 website: dep_website
-	cd website && node $(CLI_MAIN)
+	cd website && node $(OLD_CLI_MAIN)
+
+old_cli: dep_old_cli
+	node $(OLD_CLI_MAIN)
 
 cli: dep_cli
-	node $(CLI_MAIN)
+	cargo run -p nib-website-cli
 
-dep_website: dep_cli
+dep_website: dep_old_cli
 
-dep_cli: $(CLI_MAIN)
+dep_old_cli: $(OLD_CLI_MAIN)
 
-$(CLI_MAIN): $(CLI_SOURCES)
+dep_cli:
+
+$(OLD_CLI_MAIN): $(OLD_CLI_SOURCES)
 	cd cli && npm run build
