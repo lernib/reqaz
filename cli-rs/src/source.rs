@@ -1,4 +1,6 @@
+use crate::html::process_html;
 use crate::mime::GetMime;
+use http::uri::{Authority, Scheme};
 use http_body_util::Full;
 use hyper::{Request, Response, StatusCode, Uri};
 use hyper::body::Bytes;
@@ -18,9 +20,10 @@ pub struct SourceService {
 }
 
 impl SourceService {
-    pub fn new(src: PathBuf) -> Self {
+    pub fn new(src: PathBuf, authority: Authority) -> Self {
         let resolver = SourceResolver {
-            src
+            src,
+            authority
         };
 
         Self {
@@ -68,12 +71,20 @@ impl<'me> Service<Request<IncomingBody>> for &'me SourceService {
 
 #[derive(Clone)]
 struct SourceResolver {
-    pub src: PathBuf
+    pub src: PathBuf,
+    pub authority: Authority
 }
 
 impl SourceResolver {
     async fn resolve_source(&self, uri: &Uri) -> ResolvedSource {
-        let path = self.get_path_from_uri(uri).await;
+        let mut parts = uri.clone().into_parts();
+        parts.scheme = Some(Scheme::HTTP);
+        parts.authority = Some(self.authority.clone());
+
+        let uri = Uri::from_parts(parts)
+            .unwrap_or_else(|_| unreachable!());
+
+        let path = self.get_path_from_uri(&uri).await;
         let mime = path.get_mime();
 
         if let Some(mime) = mime {
@@ -81,6 +92,8 @@ impl SourceResolver {
                 .await
                 .map_or_else(
                     |e| {
+                        eprintln!("[IOERROR] {}", e);
+
                         let status = match e.kind() {
                             IoErrorKind::NotFound => StatusCode::NOT_FOUND,
                             _ => StatusCode::INTERNAL_SERVER_ERROR
@@ -94,7 +107,17 @@ impl SourceResolver {
                         let mut body = s;
 
                         if mime == mime::TEXT_HTML {
-                            // Process HTML
+                            let new_body = process_html(&uri, body);
+
+                            if let Ok(b) = new_body {
+                                body = b;
+                            } else {
+                                eprintln!("Error serving request: {}", new_body.unwrap_err());
+
+                                return ResolvedSource::Fail {
+                                    status: StatusCode::FAILED_DEPENDENCY
+                                }
+                            }
                         }
 
                         ResolvedSource::Success {
@@ -109,7 +132,7 @@ impl SourceResolver {
     }
 
     async fn get_path_from_uri(&self, uri: &Uri) -> PathBuf {
-        let pathname = uri.to_string()
+        let pathname = uri.path()
             .get(1..)
             .unwrap_or("")
             .to_owned();

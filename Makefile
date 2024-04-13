@@ -7,7 +7,7 @@ OLD_CLI_SOURCES=\
 
 
 website: dep_website
-	cd website && node $(OLD_CLI_MAIN)
+	cargo run -p nib-website-cli -- $(PWD)/website
 
 old_cli: dep_old_cli
 	node $(OLD_CLI_MAIN)
@@ -15,7 +15,7 @@ old_cli: dep_old_cli
 cli: dep_cli
 	cargo run -p nib-website-cli -- $(PWD)/website
 
-dep_website: dep_old_cli
+dep_website: dep_cli
 
 dep_old_cli: $(OLD_CLI_MAIN)
 
