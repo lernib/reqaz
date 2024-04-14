@@ -94,8 +94,6 @@ impl SourceResolver {
                 .await
                 .map_or_else(
                     |e| {
-                        eprintln!("[IOERROR] {}", e);
-
                         let status = match e.kind() {
                             IoErrorKind::NotFound => StatusCode::NOT_FOUND,
                             _ => StatusCode::INTERNAL_SERVER_ERROR

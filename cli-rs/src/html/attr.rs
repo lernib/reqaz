@@ -24,18 +24,19 @@ impl GetAttr for ElementData {
 }
 
 pub enum Href {
-    Absolute(Uri),
+    Uri(Uri),
+    Absolute(PathBuf),
     Relative(PathBuf),
-    Id(String),
-    Script(String)
+    Other(String)
 }
 
 impl Href {
     pub fn extension(&self) -> Option<String> {
         match self {
-            Href::Absolute(uri) => PathBuf::from(uri.path())
+            Href::Uri(uri) => PathBuf::from(uri.path())
                 .extension()
                 .map(|ext| ext.to_string_lossy().to_string()),
+            Href::Absolute(p) |
             Href::Relative(p) => p.extension()
                 .map(|ext| ext.to_string_lossy().to_string()),
             _ => None
@@ -44,7 +45,8 @@ impl Href {
 
     pub fn append_to_uri(self, uri: &Uri) -> Uri {
         match self {
-            Href::Absolute(uri) => return uri,
+            Href::Uri(uri) => return uri,
+            Href::Absolute(path) |
             Href::Relative(path) => {
                 let mut parts = uri.clone().into_parts();
                 let uri_path = PathBuf::from(uri.path())
@@ -72,8 +74,8 @@ impl TryFrom<&str> for Href {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         // Check for starting slash
         if value.chars().next() == Some('/') {
-            return Ok(Uri::from_str(value)
-                .map(|uri| Href::Absolute(uri))?)
+            let path = PathBuf::from(value);
+            return Ok(Href::Absolute(path))
         }
 
         // Check for "://"
@@ -90,7 +92,7 @@ impl TryFrom<&str> for Href {
 
             if n1 == Some('/') && n2 == Some('/') {
                 return Ok(Uri::from_str(value)
-                    .map(|uri| Href::Absolute(uri))?);
+                    .map(|uri| Href::Uri(uri))?);
             }
         }
 
