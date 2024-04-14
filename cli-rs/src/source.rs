@@ -90,7 +90,7 @@ impl SourceResolver {
         let mime = path.get_media_type().clone();
 
         if let Some(mime) = mime {
-            return tokio::fs::read_to_string(path)
+            return tokio::fs::read(path)
                 .await
                 .map_or_else(
                     |e| {
@@ -109,15 +109,23 @@ impl SourceResolver {
                         let mut body = s;
 
                         if mime == media_type!(TEXT/HTML) {
-                            let new_body = process_html(&uri, body);
+                            let body_str = String::from_utf8(body);
+                            if let Ok(body_str) = body_str {
 
-                            if let Ok(b) = new_body {
-                                body = b;
+                                let new_body = process_html(&uri, body_str);
+
+                                if let Ok(b) = new_body {
+                                    body = b.bytes().collect()
+                                } else {
+                                    eprintln!("Error serving request: {}", new_body.unwrap_err());
+
+                                    return ResolvedSource::Fail {
+                                        status: StatusCode::FAILED_DEPENDENCY
+                                    }
+                                }
                             } else {
-                                eprintln!("Error serving request: {}", new_body.unwrap_err());
-
                                 return ResolvedSource::Fail {
-                                    status: StatusCode::FAILED_DEPENDENCY
+                                    status: StatusCode::EXPECTATION_FAILED
                                 }
                             }
                         }
@@ -170,7 +178,7 @@ enum ResolvedSource {
     },
 
     Success {
-        body: String,
+        body: Vec<u8>,
         mime: MediaType<'static>
     }
 }
