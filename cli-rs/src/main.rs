@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use tokio::net::TcpListener;
 
 mod html;
-mod mime;
+mod mediatype;
 mod source;
 
 

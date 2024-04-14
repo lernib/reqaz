@@ -1,12 +1,12 @@
 use crate::html::process_html;
-use crate::mime::GetMime;
+use crate::mediatype::GetMediaType;
 use http::uri::{Authority, Scheme};
 use http_body_util::Full;
 use hyper::{Request, Response, StatusCode, Uri};
 use hyper::body::Bytes;
 use hyper::body::Incoming as IncomingBody;
 use hyper::service::Service;
-use mime::Mime;
+use mediatype::{media_type, MediaType};
 use std::future::Future;
 use std::io::ErrorKind as IoErrorKind;
 use std::path::PathBuf;
@@ -35,7 +35,7 @@ impl SourceService {
         // type safety 😌
         Result<<&Self as Service<Request<IncomingBody>>>::Response, <&Self as Service<Request<IncomingBody>>>::Error>
     {
-        let source = self.resolver.resolve_source(req.uri()).await;
+        let source = self.resolver.resolve_source(req).await;
 
         let response = Response::builder();
         let response = match source {
@@ -76,7 +76,9 @@ struct SourceResolver {
 }
 
 impl SourceResolver {
-    async fn resolve_source(&self, uri: &Uri) -> ResolvedSource {
+    async fn resolve_source(&self, req: Request<IncomingBody>) -> ResolvedSource {
+        let uri = req.uri();
+
         let mut parts = uri.clone().into_parts();
         parts.scheme = Some(Scheme::HTTP);
         parts.authority = Some(self.authority.clone());
@@ -84,8 +86,8 @@ impl SourceResolver {
         let uri = Uri::from_parts(parts)
             .unwrap_or_else(|_| unreachable!());
 
-        let path = self.get_path_from_uri(&uri).await;
-        let mime = path.get_mime();
+        let path = self.get_path_from_request(req).await;
+        let mime = path.get_media_type().clone();
 
         if let Some(mime) = mime {
             return tokio::fs::read_to_string(path)
@@ -106,7 +108,7 @@ impl SourceResolver {
                     |s| {
                         let mut body = s;
 
-                        if mime == mime::TEXT_HTML {
+                        if mime == media_type!(TEXT/HTML) {
                             let new_body = process_html(&uri, body);
 
                             if let Ok(b) = new_body {
@@ -122,7 +124,7 @@ impl SourceResolver {
 
                         ResolvedSource::Success {
                             body,
-                            mime
+                            mime: mime.into()
                         }
                     }
                 )
@@ -131,7 +133,17 @@ impl SourceResolver {
         ResolvedSource::Fail { status: StatusCode::INTERNAL_SERVER_ERROR }
     }
 
-    async fn get_path_from_uri(&self, uri: &Uri) -> PathBuf {
+    async fn get_path_from_request(&self, req: Request<IncomingBody>) -> PathBuf {
+        let uri = req.uri();
+        let mut base_folder = "static";
+
+        if req.headers()
+            .get("Nib-Variant")
+            .and_then(|hv| hv.to_str().ok()) == Some("component")
+        {
+            base_folder = "components";
+        }
+
         let pathname = uri.path()
             .get(1..)
             .unwrap_or("")
@@ -146,7 +158,7 @@ impl SourceResolver {
             return pages_path;
         } else {
             return self.src
-                .join("static")
+                .join(base_folder)
                 .join(pathname);
         }
     }
@@ -159,6 +171,6 @@ enum ResolvedSource {
 
     Success {
         body: String,
-        mime: Mime
+        mime: MediaType<'static>
     }
 }
