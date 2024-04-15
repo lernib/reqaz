@@ -7,6 +7,7 @@ pub use super::Html;
 
 mod css;
 mod fetch;
+mod script;
 
 
 pub trait HtmlMod {
@@ -30,6 +31,7 @@ impl HtmlModManager {
         let mod_: Box<dyn HtmlMod> = match mod_ {
             "fetch" => Box::new(fetch::FetchMod::new(self.page_uri.clone())),
             "css" => Box::new(css::CssMod::default()),
+            "script" => Box::new(script::ScriptMod::new(self.page_uri.clone())),
             _ => return None
         };
 

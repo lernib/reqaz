@@ -13,7 +13,6 @@ old_cli: dep_old_cli
 	node $(OLD_CLI_MAIN)
 
 cli: dep_cli
-	cargo run -p nib-website-cli -- $(PWD)/website
 
 dep_website: dep_cli
 

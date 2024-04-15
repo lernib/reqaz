@@ -933,6 +933,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "kuchikiki",
+ "lazy_static",
  "lightningcss",
  "log",
  "mediatype",
