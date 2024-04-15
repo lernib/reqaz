@@ -5,11 +5,12 @@ use std::collections::HashMap;
 
 pub use super::Html;
 
+mod css;
 mod fetch;
 
 
 pub trait HtmlMod {
-    fn modify(&self, html: Html) -> Result<Html, eyre::Error>;
+    fn modify(&self, html: Html) -> Result<Html>;
 }
 
 pub struct HtmlModManager {
@@ -26,8 +27,9 @@ impl HtmlModManager {
     }
 
     fn load_mod(&mut self, mod_: &str) -> Option<Box<dyn HtmlMod>> {
-        let mod_ = match mod_ {
+        let mod_: Box<dyn HtmlMod> = match mod_ {
             "fetch" => Box::new(fetch::FetchMod::new(self.page_uri.clone())),
+            "css" => Box::new(css::CssMod::default()),
             _ => return None
         };
 
