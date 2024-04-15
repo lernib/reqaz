@@ -12,10 +12,17 @@ pub Script: Script = {
 };
 
 pub Item: Item = {
-    "let" <i:Ident> "=" <e:Expr> ";" => Item::new_let(i, e)
+    "let" <i:Ident> "=" <e:Expr> ";" => Item::new_let(i, e),
+    <e:ExprCall> ";" => Item::Expr(e)
+}
+
+ExprCall: Expr = {
+    <e:Expr> "(" <a:Expr+> ")" => Expr::new_call(Box::new(e), a)
 }
 
 pub Expr: Expr = {
+    ExprCall,
+    Ident => Expr::Ident(<>),
     Lit => Expr::Lit(<>)
 }
 

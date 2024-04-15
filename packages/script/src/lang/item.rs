@@ -3,7 +3,8 @@ use super::Expr;
 
 
 pub enum Item {
-    Let(ItemLet)
+    Let(ItemLet),
+    Expr(Expr)
 }
 
 impl Item {
@@ -19,6 +20,6 @@ impl Parse for Item {
 }
 
 pub struct ItemLet {
-    ident: String,
-    expr: Expr
+    pub ident: String,
+    pub expr: Expr
 }
