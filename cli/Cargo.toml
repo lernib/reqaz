@@ -18,5 +18,6 @@ lazy_static = "1.4.0"
 lightningcss = { version = "1.0.0-alpha.55", features = ["into_owned"] }
 log = "0.4.21"
 mediatype = "0.19.18"
+nib-script = { version = "0.1.0", path = "../packages/script" }
 tokio = { version = "1.37.0", features = ["macros", "fs", "net", "rt-multi-thread"] }
 ureq = "2.9.6"

@@ -4,6 +4,8 @@ use html5ever::{ns, namespace_url};
 use html5ever::{QualName, LocalName};
 use hyper::Uri;
 use lazy_static::lazy_static;
+use nib_script::lang::Parse;
+use nib_script::lang::Script;
 use super::HtmlMod;
 
 
@@ -33,6 +35,9 @@ impl HtmlMod for ScriptMod {
             if let Some(el) = node.as_element() {
                 if el.name == *QUAL_NAME {
                     let contents = node.text_contents();
+
+                    let script = Script::parse(&contents)
+                        .map_err(|e| eyre!("Invalid script: {}", e))?;
 
                     // detach script
                     node.detach()
