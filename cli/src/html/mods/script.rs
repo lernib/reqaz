@@ -9,6 +9,7 @@ use nib_script::lang::Script;
 use nib_script::runtime::Processable;
 use nib_script::runtime::Runtime;
 use super::HtmlMod;
+use std::sync::OnceLock;
 
 
 lazy_static! {
@@ -17,6 +18,30 @@ lazy_static! {
         ns!(html),
         LocalName::from("nib:script")
     );
+}
+
+static RUNTIME_STD: OnceLock<Runtime> = OnceLock::new();
+
+fn runtime_std() -> Runtime<'static> {
+    RUNTIME_STD.get_or_init(|| {
+        let mut runtime = Runtime::default();
+
+        runtime.register_function("log", |args| {
+            for arg in &args {
+                print!("{}", arg.to_string());
+            }
+    
+            if args.is_empty() {
+                println!("<no args>")
+            } else {
+                println!("");
+            }
+
+            None
+        });
+
+        runtime
+    }).clone()
 }
 
 pub struct ScriptMod {
@@ -33,7 +58,7 @@ impl ScriptMod {
 
 impl HtmlMod for ScriptMod {
     fn modify(&self, html: super::Html) -> Result<super::Html> {
-        let mut runtime = Runtime::default();
+        let mut runtime = runtime_std();
 
         for node in html.descendants() {
             if let Some(el) = node.as_element() {

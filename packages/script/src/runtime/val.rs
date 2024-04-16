@@ -5,7 +5,14 @@ use std::ops::{Add, Div, Mul, Sub};
 pub enum Value {
     Number(i64),
     String(String),
-    Boolean(bool)
+    Boolean(bool),
+    Function(FunctionValue)
+}
+
+impl Value {
+    pub fn new_function(f: fn(Vec<Value>) -> Option<Value>) -> Value {
+        Value::Function(FunctionValue::Rust(f))
+    }
 }
 
 impl ToString for Value {
@@ -13,7 +20,8 @@ impl ToString for Value {
         match self {
             Value::String(s) => s.into(),
             Value::Number(n) => n.to_string(),
-            Value::Boolean(b) => b.to_string()
+            Value::Boolean(b) => b.to_string(),
+            Value::Function(_) => "<function>".into()
         }
     }
 }
@@ -84,6 +92,19 @@ impl Div<Value> for Value {
         operator_impl! {
             [self, rhs];
             (number -> n1, number -> n2) => Some(Value::Number(n1 / n2))
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum FunctionValue {
+    Rust(fn(Vec<Value>) -> Option<Value>)
+}
+
+impl FunctionValue {
+    pub fn call(&self, args: Vec<Value>) -> Option<Value> {
+        match self {
+            FunctionValue::Rust(func) => func(args)
         }
     }
 }

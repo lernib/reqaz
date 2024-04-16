@@ -41,21 +41,18 @@ pub struct ExprCall {
 
 impl Processable for ExprCall {
     fn process(&self, runtime: &mut Runtime) -> Option<Value> {
-        // every function is log lol
-        let args = self.args
-            .iter()
-            .map(|a| a.process(runtime))
-            .filter_map(|v| v)
-            .collect::<Vec<_>>();
+        // get function value
+        let func = self.func.process(runtime)?;
 
-        for arg in &args {
-            print!("{}", arg.to_string());
-        }
+        if let Value::Function(func) = func {
+            // every function is log lol
+            let args = self.args
+                .iter()
+                .map(|a| a.process(runtime))
+                .filter_map(|v| v)
+                .collect::<Vec<_>>();
 
-        if args.is_empty() {
-            println!("<no args>")
-        } else {
-            println!("");
+            return func.call(args);
         }
 
         None

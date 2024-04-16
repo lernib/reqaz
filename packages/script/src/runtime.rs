@@ -5,7 +5,7 @@ pub mod val;
 pub use val::Value;
 
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Runtime<'me> {
     ctx: Context<'me>
 }
@@ -22,13 +22,17 @@ impl<'me> Runtime<'me> {
     pub fn ctx_mut(&mut self) -> &mut Context<'me> {
         &mut self.ctx
     }
+
+    pub fn register_function(&mut self, name: &str, f: fn(Vec<Value>) -> Option<Value>) {
+        self.ctx_mut().set(name.into(), Value::new_function(f));
+    }
 }
 
 pub trait Processable {
     fn process(&self, runtime: &mut Runtime) -> Option<Value>;
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Context<'me> {
     parent: Option<&'me Context<'me>>,
     map: HashMap<String, Value>
