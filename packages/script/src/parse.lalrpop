@@ -1,7 +1,9 @@
 use std::str::FromStr;
 use super::lang::{
     Script, Item,
-    Expr, Lit
+    Expr, Lit,
+    ExprBinary,
+    BinOp
 };
 
 
@@ -17,13 +19,31 @@ pub Item: Item = {
 }
 
 ExprCall: Expr = {
-    <e:Expr> "(" <a:Expr+> ")" => Expr::new_call(Box::new(e), a)
+    <e:Expr> "(" <a:Comma<Expr>> ")" => Expr::new_call(Box::new(e), a)
 }
 
 pub Expr: Expr = {
-    ExprCall,
+    #[precedence(level="0")]
     Ident => Expr::Ident(<>),
-    Lit => Expr::Lit(<>)
+    Lit => Expr::Lit(<>),
+    #[precedence(level="2")] #[assoc(side="right")]
+    Expr MulDiv Expr => Expr::Binary(ExprBinary::new(<>)),
+    #[precedence(level="3")] #[assoc(side="right")]
+    Expr AddSub Expr => Expr::Binary(ExprBinary::new(<>)),
+    #[precedence(level="4")]
+    "(" <e:Expr> ")" => e,
+    #[precedence(level="5")] #[assoc(side="right")]
+    ExprCall
+}
+
+AddSub: BinOp = {
+    "+" => BinOp::Add,
+    "-" => BinOp::Sub
+}
+
+MulDiv: BinOp = {
+    "*" => BinOp::Mul,
+    "/" => BinOp::Div
 }
 
 pub Lit: Lit = {
@@ -36,4 +56,14 @@ Ident: String = {
 
 Num: i64 = {
     r"[0-9]+" => i64::from_str(<>).unwrap()
+};
+
+Comma<T>: Vec<T> = { // (1)
+    <mut v:(<T> ",")*> <e:T?> => match e { // (2)
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
 };

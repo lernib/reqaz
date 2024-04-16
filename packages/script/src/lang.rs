@@ -3,12 +3,14 @@ use lalrpop_util::lexer::Token;
 mod expr;
 mod item;
 mod lit;
+mod op;
 mod script;
 
-pub use expr::Expr;
-pub use item::Item;
-pub use lit::Lit;
-pub use script::Script;
+pub use expr::*;
+pub use item::*;
+pub use lit::*;
+pub use op::*;
+pub use script::*;
 
 
 type ParseError<'input> = lalrpop_util::ParseError<usize, Token<'input>, &'static str>;

@@ -1,5 +1,9 @@
 use std::collections::HashMap;
 
+pub mod val;
+
+pub use val::Value;
+
 
 #[derive(Default)]
 pub struct Runtime<'me> {
@@ -44,22 +48,5 @@ impl<'me> Context<'me> {
 
     pub fn set(&mut self, key: String, value: Value) -> Option<Value> {
         self.map.insert(key, value)
-    }
-}
-
-#[derive(Clone)]
-pub enum Value {
-    Number(i64),
-    String(String),
-    Boolean(bool)
-}
-
-impl ToString for Value {
-    fn to_string(&self) -> String {
-        match self {
-            Value::String(s) => s.into(),
-            Value::Number(n) => n.to_string(),
-            Value::Boolean(b) => b.to_string()
-        }
     }
 }

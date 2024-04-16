@@ -1,9 +1,11 @@
 use crate::runtime::{Processable, Runtime, Value};
 use super::{Parse, ParseError};
+use super::ExprBinary;
 use super::Lit;
 
 
 pub enum Expr {
+    Binary(ExprBinary),
     Call(ExprCall),
     Ident(String),
     Lit(Lit)
@@ -26,7 +28,8 @@ impl Processable for Expr {
         match self {
             Expr::Call(ec) => ec.process(runtime),
             Expr::Ident(ei) => runtime.ctx().get(ei).cloned(),
-            Expr::Lit(el) => el.process(runtime)
+            Expr::Lit(el) => el.process(runtime),
+            Expr::Binary(eb) => eb.process(runtime)
         }
     }
 }

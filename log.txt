@@ -1,0 +1,2 @@
+   Compiling nib-script v0.1.0 (/home/cski/code/@lernib/@experimental/website/packages/script)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.53s
