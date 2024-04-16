@@ -1,3 +1,4 @@
+use crate::runtime::{Processable, Runtime, Value};
 use super::{Parse, ParseError};
 use super::Expr;
 
@@ -19,7 +20,26 @@ impl Parse for Item {
     }
 }
 
+impl Processable for Item {
+    fn process(&self, runtime: &mut Runtime) -> Option<Value> {
+        match self {
+            Item::Let(il) => il.process(runtime),
+            Item::Expr(e) => e.process(runtime)
+        }
+    }
+}
+
 pub struct ItemLet {
     pub ident: String,
     pub expr: Expr
+}
+
+impl Processable for ItemLet {
+    fn process(&self, runtime: &mut Runtime) -> Option<Value> {
+        let val = self.expr.process(runtime)?;
+
+        runtime.ctx_mut().set(self.ident.clone(), val);
+
+        None
+    }
 }

@@ -1,3 +1,4 @@
+use crate::runtime::{Processable, Runtime, Value};
 use super::{Parse, ParseError};
 use super::Item;
 
@@ -9,6 +10,16 @@ pub struct Script {
 impl Parse for Script {
     fn parse(s: &str) -> Result<Self, ParseError> {
         crate::parse::ScriptParser::new().parse(s)
+    }
+}
+
+impl Processable for Script {
+    fn process(&self, runtime: &mut Runtime) -> Option<Value> {
+        for item in self.items.iter() {
+            item.process(runtime);
+        }
+
+        None
     }
 }
 

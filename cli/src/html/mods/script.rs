@@ -6,6 +6,8 @@ use hyper::Uri;
 use lazy_static::lazy_static;
 use nib_script::lang::Parse;
 use nib_script::lang::Script;
+use nib_script::runtime::Processable;
+use nib_script::runtime::Runtime;
 use super::HtmlMod;
 
 
@@ -31,6 +33,8 @@ impl ScriptMod {
 
 impl HtmlMod for ScriptMod {
     fn modify(&self, html: super::Html) -> Result<super::Html> {
+        let mut runtime = Runtime::default();
+
         for node in html.descendants() {
             if let Some(el) = node.as_element() {
                 if el.name == *QUAL_NAME {
@@ -38,6 +42,8 @@ impl HtmlMod for ScriptMod {
 
                     let script = Script::parse(&contents)
                         .map_err(|e| eyre!("Invalid script: {}", e))?;
+
+                    script.process(&mut runtime);
 
                     // detach script
                     node.detach()
