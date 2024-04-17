@@ -1,4 +1,5 @@
 use crate::html::attr::*;
+use color_eyre::owo_colors::OwoColorize;
 use eyre::eyre;
 use eyre::Result;
 use html5ever::{ns, namespace_url};
@@ -134,7 +135,10 @@ impl HtmlMod for ScriptMod {
             .ok_or(eyre!("[MY FAULT] Downcast was not proper type"))?
             .clone();
 
-        for fetch in nibscript_data.tag_fetches {
+        let mut tag_fetches = nibscript_data.tag_fetches;
+        tag_fetches.reverse();
+
+        for fetch in tag_fetches {
             let type_ = match fetch.component {
                 false => None,
                 true => Some("component".into())

@@ -28,27 +28,38 @@
     font-style: normal;
 }
 
+// $color2_light: color.adjust($color2, $lightness: 40%);
+// $color3_light: color.adjust($color3, $lightness: 40%);
+// $color4_light: color.adjust($color4, $lightness: 40%);
+// $color5_light: color.adjust($color5, $lightness: 40%);
+
+// $color1_dark: color.adjust($color1, $lightness: -40%);
+// $color2_dark: color.adjust($color2, $lightness: -40%);
+// $color3_dark: color.adjust($color3, $lightness: -40%);
+// $color4_dark: color.adjust($color4, $lightness: -40%);
+// $color5_dark: color.adjust($color5, $lightness: -40%);
+
 :root {
     font-size: 16px;
     font-family: Moderat, sans-serif;
+
+    /* Variables */
+    --color1: #FAFAFA;
+    --color2: #054CC0;
+    --color3: #FC5836;
+    --color4: #FEC305;
+    --color5: #26C465;
+
+    // --color2_light: $color2_light;
+    // --color3_light: $color3_light;
+    // --color4_light: $color4_light;
+    // --color5_light: $color5_light;
+
+    // --color2_dark: $color2_dark;
+    // --color3_dark: $color3_dark;
+    // --color4_dark: $color4_dark;
+    // --color5_dark: $color5_dark;
 }
-
-$color1: #FAFAFA;
-$color2: #054CC0;
-$color3: #FC5836;
-$color4: #FEC305;
-$color5: #26C465;
-
-$color2_light: color.adjust($color2, $lightness: 40%);
-$color3_light: color.adjust($color3, $lightness: 40%);
-$color4_light: color.adjust($color4, $lightness: 40%);
-$color5_light: color.adjust($color5, $lightness: 40%);
-
-$color1_dark: color.adjust($color1, $lightness: -40%);
-$color2_dark: color.adjust($color2, $lightness: -40%);
-$color3_dark: color.adjust($color3, $lightness: -40%);
-$color4_dark: color.adjust($color4, $lightness: -40%);
-$color5_dark: color.adjust($color5, $lightness: -40%);
 
 * {
     margin: 0;
@@ -59,21 +70,4 @@ $color5_dark: color.adjust($color5, $lightness: -40%);
     font-family: inherit;
     font-style: inherit;
     color: inherit;
-
-    /* Variables */
-    --color1: $color1;
-    --color2: $color2;
-    --color3: $color3;
-    --color4: $color4;
-    --color5: $color5;
-
-    --color2_light: $color2_light;
-    --color3_light: $color3_light;
-    --color4_light: $color4_light;
-    --color5_light: $color5_light;
-
-    --color2_dark: $color2_dark;
-    --color3_dark: $color3_dark;
-    --color4_dark: $color4_dark;
-    --color5_dark: $color5_dark;
 }
