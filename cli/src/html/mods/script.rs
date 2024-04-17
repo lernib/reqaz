@@ -1,3 +1,4 @@
+use crate::html::attr::*;
 use eyre::eyre;
 use eyre::Result;
 use html5ever::{ns, namespace_url};
@@ -8,8 +9,10 @@ use nib_script::lang::Parse;
 use nib_script::lang::Script;
 use nib_script::runtime::Processable;
 use nib_script::runtime::Runtime;
+use nib_script::runtime::Value;
+use super::fetch::*;
+use super::Html;
 use super::HtmlMod;
-use std::sync::OnceLock;
 
 
 lazy_static! {
@@ -20,28 +23,60 @@ lazy_static! {
     );
 }
 
-static RUNTIME_STD: OnceLock<Runtime> = OnceLock::new();
+fn runtime_std<'r>() -> Runtime<'r> {
+    let mut runtime = Runtime::default();
 
-fn runtime_std() -> Runtime<'static> {
-    RUNTIME_STD.get_or_init(|| {
-        let mut runtime = Runtime::default();
+    let nibscript_data = ScriptModData::default();
 
-        runtime.register_function("log", |args| {
-            for arg in &args {
-                print!("{}", arg.to_string());
-            }
-    
-            if args.is_empty() {
-                println!("<no args>")
-            } else {
-                println!("");
-            }
+    runtime.register_value(
+        "__nibscript_data",
+        Value::new_rsdata_rc_refcell(nibscript_data)
+    );
 
-            None
+    runtime.register_function("fetch_tag", |runtime, args| {
+        let href = args.first()?.to_string();
+        let href = Href::try_from(href.as_str()).ok()?;
+
+        let node = runtime.ctx().get("__nibscript_node")?
+            .as_rc_refcell()?;
+        let node = node
+            .try_borrow()
+            .ok()?;
+        let node = node
+            .downcast_ref::<Html>()?
+            .clone();
+
+        let binding = runtime.ctx().get("__nibscript_data")?
+            .as_rc_refcell()?;
+        let mut binding = binding
+            .try_borrow_mut()
+            .ok()?;
+        let nibscript_data = binding
+            .downcast_mut::<ScriptModData>()?;
+
+        nibscript_data.tag_fetches.push(TagFetch {
+            href,
+            node
         });
 
-        runtime
-    }).clone()
+        None
+    });
+
+    runtime.register_function("log", |_, args| {
+        for arg in &args {
+            print!("{}", arg.to_string());
+        }
+
+        if args.is_empty() {
+            println!("<no args>")
+        } else {
+            println!("");
+        }
+
+        None
+    });
+
+    runtime
 }
 
 pub struct ScriptMod {
@@ -57,12 +92,18 @@ impl ScriptMod {
 }
 
 impl HtmlMod for ScriptMod {
-    fn modify(&self, html: super::Html) -> Result<super::Html> {
+    fn modify(&self, html: Html) -> Result<Html> {
         let mut runtime = runtime_std();
+        let mut script_nodes = vec![];
 
         for node in html.descendants() {
             if let Some(el) = node.as_element() {
                 if el.name == *QUAL_NAME {
+                    runtime.register_value(
+                        "__nibscript_node",
+                        Value::new_rsdata_rc_refcell(node.clone())
+                    );
+
                     let contents = node.text_contents();
 
                     let script = Script::parse(&contents)
@@ -70,12 +111,44 @@ impl HtmlMod for ScriptMod {
 
                     script.process(&mut runtime);
 
-                    // detach script
-                    node.detach()
+                    script_nodes.push(node);
                 }
             }
         }
 
+        // get the data
+        let nibscript_data = runtime.ctx().get("__nibscript_data")
+            .ok_or(eyre!("[YOUR FAULT] __nibscript_data replaced"))?
+            .as_rc_refcell()
+            .ok_or(eyre!("[YOUR FAULT] __nibscript_data replaced"))?;
+        let nibscript_data = nibscript_data
+            .try_borrow()?;
+        let nibscript_data = nibscript_data
+            .downcast_ref::<ScriptModData>()
+            .ok_or(eyre!("[MY FAULT] Downcast was not proper type"))?
+            .clone();
+
+        for fetch in nibscript_data.tag_fetches {
+            let el = perform_fetch(fetch.href, &self.page_uri, None)?;
+
+            fetch.node.insert_after(el);
+        }
+
+        for node in script_nodes {
+            node.detach()
+        }
+
         Ok(html)
     }
+}
+
+#[derive(Default, Clone)]
+struct ScriptModData {
+    tag_fetches: Vec<TagFetch>
+}
+
+#[derive(Clone)]
+struct TagFetch {
+    href: Href,
+    node: Html
 }

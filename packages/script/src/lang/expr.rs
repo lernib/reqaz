@@ -52,7 +52,7 @@ impl Processable for ExprCall {
                 .filter_map(|v| v)
                 .collect::<Vec<_>>();
 
-            return func.call(args);
+            return func.call(runtime, args);
         }
 
         None

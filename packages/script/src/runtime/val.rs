@@ -1,4 +1,8 @@
+use crate::runtime::Runtime;
+use std::any::Any;
+use std::cell::RefCell;
 use std::ops::{Add, Div, Mul, Sub};
+use std::rc::Rc;
 
 
 #[derive(Clone)]
@@ -6,12 +10,36 @@ pub enum Value {
     Number(i64),
     String(String),
     Boolean(bool),
-    Function(FunctionValue)
+    Function(FunctionValue),
+
+    // Rusty variants
+    RsDataRcRefcell(Rc<RefCell<dyn Any>>)
 }
 
 impl Value {
-    pub fn new_function(f: fn(Vec<Value>) -> Option<Value>) -> Value {
+    pub fn new_function(f: fn(&mut Runtime, Vec<Value>) -> Option<Value>) -> Value {
         Value::Function(FunctionValue::Rust(f))
+    }
+
+    pub fn new_rsdata_rc_refcell<A>(val: A) -> Value
+    where
+        A: Any
+    {
+        Value::RsDataRcRefcell(
+            Rc::new(
+                RefCell::new(
+                    val
+                )
+            )
+        )
+    }
+
+    pub fn as_rc_refcell(&self) -> Option<Rc<RefCell<dyn Any>>> {
+        if let Value::RsDataRcRefcell(rs) = self {
+            return Some(rs.clone())
+        } else {
+            return None
+        }
     }
 }
 
@@ -21,7 +49,8 @@ impl ToString for Value {
             Value::String(s) => s.into(),
             Value::Number(n) => n.to_string(),
             Value::Boolean(b) => b.to_string(),
-            Value::Function(_) => "<function>".into()
+            Value::Function(_) => "<function>".into(),
+            Value::RsDataRcRefcell(_) => "<rsdata>".into()
         }
     }
 }
@@ -98,13 +127,13 @@ impl Div<Value> for Value {
 
 #[derive(Clone)]
 pub enum FunctionValue {
-    Rust(fn(Vec<Value>) -> Option<Value>)
+    Rust(fn(&mut Runtime, Vec<Value>) -> Option<Value>)
 }
 
 impl FunctionValue {
-    pub fn call(&self, args: Vec<Value>) -> Option<Value> {
+    pub fn call(&self, runtime: &mut Runtime, args: Vec<Value>) -> Option<Value> {
         match self {
-            FunctionValue::Rust(func) => func(args)
+            FunctionValue::Rust(func) => func(runtime, args)
         }
     }
 }

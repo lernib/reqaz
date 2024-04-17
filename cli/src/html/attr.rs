@@ -23,6 +23,7 @@ impl GetAttr for ElementData {
     }
 }
 
+#[derive(Clone)]
 pub enum Href {
     Uri(Uri),
     Absolute(PathBuf),

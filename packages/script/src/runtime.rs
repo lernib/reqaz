@@ -23,8 +23,12 @@ impl<'me> Runtime<'me> {
         &mut self.ctx
     }
 
-    pub fn register_function(&mut self, name: &str, f: fn(Vec<Value>) -> Option<Value>) {
+    pub fn register_function(&mut self, name: &str, f: fn(&mut Runtime, Vec<Value>) -> Option<Value>) {
         self.ctx_mut().set(name.into(), Value::new_function(f));
+    }
+
+    pub fn register_value(&mut self, name: &str, v: Value) {
+        self.ctx_mut().set(name.into(), v);
     }
 }
 
