@@ -7,16 +7,45 @@
         <title>Homepage | Lernib</title>
         <nib:script>
             fetch_tag("global.scss");
+            fetch_tag("css/index.scss");
         </nib:script>
     </head>
     <body>
-        <nib:script>
-            let FETCH_COMPONENT = true;
+        <embed href="header.html" type="component" nib-mod="fetch">
 
-            fetch_tag("header.html");
-            fetch_tag("footer.html");
+        <div class="hero">
+            <div>
+                <h1>
+                    <!-- Learn <span class="title-span n1">faster</span> and
+                    <br class="nomobile tablet-portrait n2" />
+                    <span class="title-span n2">better</span>
+                    <br class="nomobile notablet-portrait" />
+                    through personalized
+                    <br />
+                    tutoring -->
+                    Helping you reach
+                    <br class="nomobile" />
+                    your learning goals
+                    <br class="nomobile" />
+                    - one step at a time.
+                </h1>
+                <h2>
+                    <!-- Connect with excellent tutors on our platform. Learn the way
+                    <br />
+                    you want, wherever and however you like. Our students
+                    <br />
+                    consistently ace their exams! -->
+                    Going for your goals can be overwhelming. We
+                    <br />
+                    help you get it done one step at a time, with
+                    <br />
+                    dedicated tutoring support built just for you.
+                </h2>
+                <a href="/about">Get Started Today</a>
+            </div>
+            <div class="hero-image"></div>
+        </div>
 
-            let FETCH_COMPONENT = false;
-        </nib:script>
+        <embed href="footer.html" type="component" nib-mod="fetch">
     </body>
 </html>

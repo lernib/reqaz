@@ -1,0 +1,88 @@
+@use "sass:color";
+
+@mixin for-size($size) {
+  @if $size == phone-only {
+    @media (max-width: 599px) { @content; }
+  } @else if $size == tablet-portrait-up {
+    @media (min-width: 600px) { @content; }
+  } @else if $size == tablet-portrait {
+    @media (min-width: 600px) and (max-width: 899px) { @content; }
+  } @else if $size == tablet-landscape-up {
+    @media (min-width: 900px) { @content; }
+  } @else if $size == desktop-up {
+    @media (min-width: 1200px) { @content; }
+  } @else if $size == big-desktop-up {
+    @media (min-width: 1800px) { @content; }
+  }
+}
+
+$color1: #FAFAFA;
+$color2: #054CC0;
+
+.hero {
+    background-color: color.adjust($color2, $lightness: 60%);
+    flex-grow: 1;
+    align-self: stretch;
+
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+    align-items: start;
+
+    padding: 4rem;
+    padding-bottom: 7rem;
+
+    @include for-size(tablet-landscape-up) {
+        margin-top: 2.5rem;
+    }
+
+    @include for-size(tablet-landscape-up) {
+        justify-content: center;
+        margin-top: 0;
+    }
+
+    div:first-child {
+        display: flex;
+        flex-direction: column;
+        justify-content: start;
+        align-items: start;
+
+        h1 {
+            font-size: 2.5rem;
+            text-align: start;
+            font-family: "Filson Pro", sans-serif;
+
+            @include for-size(tablet-portrait-up) {
+                font-size: 4rem;
+            }
+        }
+        
+        > h2 {
+            font-size: 1.25rem;
+            text-align: start;
+            margin-top: 1.5rem;
+
+            @include for-size(tablet-portrait-up) {
+                margin: 0 2rem;
+                font-size: 1.5rem;
+                margin: 0;
+                margin-top: 1.5rem;
+            }
+
+        }
+        
+        > a {
+            background-color: color.adjust($color2, $lightness: -5%);
+            color: var(--color1);
+            font-weight: bold;
+            padding: 1rem 1.5rem;
+            border-radius: 9999px;
+            margin-top: 2rem;
+            font-size: 1.1rem;
+        }
+    }
+}
+
+.hero-image {
+    flex-grow: 1;
+}

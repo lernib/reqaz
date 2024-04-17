@@ -129,8 +129,6 @@ impl SourceResolver {
                         } else if uri.path().ends_with(".scss") {
                             let compiled = rsass::compile_scss(&body, Default::default());
 
-                            log::info!("Ran SASS");
-
                             match compiled {
                                 Ok(compiled) => body = compiled,
                                 Err(e) => {
