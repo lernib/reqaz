@@ -9,7 +9,7 @@ mod mods;
 
 pub type Html = kuchikiki::NodeRef;
 
-const MOD_NAMES: [&str; 3] = ["fetch", "css", "script"];
+const MOD_NAMES: [&str; 3] = ["script", "fetch", "css"];
 
 pub fn process_html(uri: &Uri, html: String) -> Result<String> {
     let mut mod_manager = HtmlModManager::new(uri.clone());

@@ -25,7 +25,7 @@ impl FetchMod {
 }
 
 pub fn get_element_from_extension(ext: String) -> Option<Html> {
-    if ext == "css" {
+    if ext == "css" || ext == "scss" {
         return Some(Html::new_element(
             QualName::new(None, ns!(html), local_name!("style")),
             vec![]

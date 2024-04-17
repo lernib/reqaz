@@ -126,6 +126,18 @@ impl SourceResolver {
                                     status: StatusCode::EXPECTATION_FAILED
                                 }
                             }
+                        } else if uri.path().ends_with(".scss") {
+                            let compiled = rsass::compile_scss(&body, Default::default());
+
+                            match compiled {
+                                Ok(compiled) => body = compiled,
+                                Err(e) => {
+                                    log::error!("Sass problem: {}", e);
+                                    return ResolvedSource::Fail {
+                                        status: StatusCode::EXPECTATION_FAILED
+                                    }
+                                }
+                            }
                         }
 
                         ResolvedSource::Success {

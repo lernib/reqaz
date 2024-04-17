@@ -18,6 +18,7 @@ impl GetMediaType for Path {
         Some(match ext {
             "html" => TEXT_HTML,
             "css" => TEXT_CSS,
+            "scss" => TEXT_CSS,
             _ => APPLICATION_OCTET_STREAM
         })
     }
