@@ -37,6 +37,11 @@ fn runtime_std<'r>() -> Runtime<'r> {
         let href = args.first()?.to_string();
         let href = Href::try_from(href.as_str()).ok()?;
 
+        let is_component = match runtime.ctx().get("FETCH_COMPONENT") {
+            Some(Value::Boolean(b)) => *b,
+            _ => false
+        };
+
         let node = runtime.ctx().get("__nibscript_node")?
             .as_rc_refcell()?;
         let node = node
@@ -56,7 +61,8 @@ fn runtime_std<'r>() -> Runtime<'r> {
 
         nibscript_data.tag_fetches.push(TagFetch {
             href,
-            node
+            node,
+            component: is_component
         });
 
         None
@@ -129,7 +135,12 @@ impl HtmlMod for ScriptMod {
             .clone();
 
         for fetch in nibscript_data.tag_fetches {
-            let el = perform_fetch(fetch.href, &self.page_uri, None)?;
+            let type_ = match fetch.component {
+                false => None,
+                true => Some("component".into())
+            };
+
+            let el = perform_fetch(fetch.href, &self.page_uri, type_)?;
 
             fetch.node.insert_after(el);
         }
@@ -150,5 +161,6 @@ struct ScriptModData {
 #[derive(Clone)]
 struct TagFetch {
     href: Href,
-    node: Html
+    node: Html,
+    component: bool
 }

@@ -48,6 +48,8 @@ MulDiv: BinOp = {
 }
 
 pub Lit: Lit = {
+    "true" => Lit::Bool(true),
+    "false" => Lit::Bool(false),
     Num => Lit::Int(<>),
     Str => Lit::Str(<>)
 }

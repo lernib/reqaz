@@ -10,6 +10,10 @@
         </nib:script>
     </head>
     <body>
-        <embed href="header.html" type="component" nib-mod="fetch">
+        <nib:script>
+            let FETCH_COMPONENT = true;
+            fetch_tag("header.html");
+            let FETCH_COMPONENT = false;
+        </nib:script>
     </body>
 </html>

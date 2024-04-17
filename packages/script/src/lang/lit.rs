@@ -4,7 +4,8 @@ use super::{Parse, ParseError};
 
 pub enum Lit {
     Int(i64),
-    Str(String)
+    Str(String),
+    Bool(bool)
 }
 
 impl Parse for Lit {
@@ -17,7 +18,8 @@ impl Processable for Lit {
     fn process(&self, _runtime: &mut Runtime) -> Option<Value> {
         match self {
             Lit::Int(i) => Some(Value::Number(*i)),
-            Lit::Str(s) => Some(Value::String(s.to_string()))
+            Lit::Str(s) => Some(Value::String(s.to_string())),
+            Lit::Bool(b) => Some(Value::Boolean(*b))
         }
     }
 }

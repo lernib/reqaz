@@ -1,4 +1,9 @@
-<link rel="stylesheet" type="component" href="../header.css" nib-mod="fetch">
+<nib:script>
+    let FETCH_COMPONENT = true;
+    fetch_tag("../header.css");
+    let FETCH_COMPONENT = false;
+</nib:script>
+
 <header>
     <a href="/">
         <img class="header-img"
