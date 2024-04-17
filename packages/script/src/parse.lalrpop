@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use super::apply_string_escapes;
 use super::lang::{
     Script, Item,
     Expr, Lit,
@@ -47,7 +48,8 @@ MulDiv: BinOp = {
 }
 
 pub Lit: Lit = {
-    Num => Lit::Int(<>)
+    Num => Lit::Int(<>),
+    Str => Lit::Str(<>)
 }
 
 Ident: String = {
@@ -57,6 +59,8 @@ Ident: String = {
 Num: i64 = {
     r"[0-9]+" => i64::from_str(<>).unwrap()
 };
+
+Str: String = <l:r#""(\\\\|\\"|[^"\\])*""#> => apply_string_escapes(&l[1..l.len()-1]).into();
 
 Comma<T>: Vec<T> = { // (1)
     <mut v:(<T> ",")*> <e:T?> => match e { // (2)
