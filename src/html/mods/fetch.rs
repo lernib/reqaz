@@ -60,17 +60,13 @@ pub fn insert_response(el: Html, resp: Response) -> Html {
     el
 }
 
-pub fn perform_fetch(href: Href, page_uri: &Uri, type_: Option<String>) -> Result<Html, eyre::Error> {
+pub fn perform_fetch(href: Href, page_uri: &Uri) -> Result<Html, eyre::Error> {
     let new_el = href.extension()
         .and_then(get_element_from_extension)
         .ok_or(eyre!("[YOUR FAULT] nib-include only supports css"))?;
 
     let href_uri = href.append_to_uri(page_uri);
-    let mut req = ureq::get(&href_uri.to_string());
-
-    if type_ == Some("component".into()) {
-        req = req.set("Nib-Variant", "component");
-    }
+    let req = ureq::get(&href_uri.to_string());
 
     let resp = req.call()?;
     let new_el = insert_response(new_el, resp);
@@ -91,12 +87,10 @@ impl HtmlMod for FetchMod {
 
             let href = nib_el.get_attr("href")
                 .ok_or(eyre!("[YOUR FAULT] nib-fetch MUST have an href"))?;
-
-            let type_ = nib_el.get_attr("type");
             
             let href = Href::try_from(href.as_str())?;
 
-            let new_el = perform_fetch(href, &self.page_uri, type_)?;
+            let new_el = perform_fetch(href, &self.page_uri)?;
 
             nib_item.insert_after(new_el);
             nib_item.detach();

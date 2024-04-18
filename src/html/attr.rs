@@ -97,6 +97,11 @@ impl TryFrom<&str> for Href {
             }
         }
 
+        // Other if javascript for some reason
+        if value.starts_with("javascript:") {
+            return Ok(Href::Other(value.to_string()));
+        }
+
         // Relative path (others not converted valid yet)
         let path = PathBuf::from(value);
 

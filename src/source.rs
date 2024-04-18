@@ -18,13 +18,15 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct SourceService {
-    resolver: Arc<SourceResolver>
+    resolver: Arc<SourceResolver>,
+    log: bool
 }
 
 impl SourceService {
-    pub fn new(resolver: SourceResolver) -> Self {
+    pub fn new(resolver: SourceResolver, log: bool) -> Self {
         Self {
-            resolver: Arc::new(resolver)
+            resolver: Arc::new(resolver),
+            log
         }
     }
 
@@ -45,19 +47,21 @@ impl SourceService {
             ResolvedSource::Fail {
                 status
             } => {
-                let status_colored = match status.as_u16() {
-                    100..=199 => status.blue().to_string(),
-                    300..=399 => status.yellow().to_string(),
-                    400..=499 => status.red().to_string(),
-                    500..=599 => status.purple().to_string(),
-                    _ => unreachable!()
-                };
+                if self.log {
+                    let status_colored = match status.as_u16() {
+                        100..=199 => status.blue().to_string(),
+                        300..=399 => status.yellow().to_string(),
+                        400..=499 => status.red().to_string(),
+                        500..=599 => status.purple().to_string(),
+                        _ => unreachable!()
+                    };
 
-                println!(
-                    "[{}] {}",
-                    status_colored.bold(),
-                    req_path
-                );
+                    println!(
+                        "[{}] {}",
+                        status_colored.bold(),
+                        req_path
+                    );
+                }
 
                 response.status(status)
                     .body(Full::new(Bytes::default()))
@@ -66,11 +70,13 @@ impl SourceService {
                 body,
                 mime
             } => {
-                println!(
-                    "[{}] {}",
-                    200.green().bold(),
-                    req_path
-                );
+                if self.log {
+                    println!(
+                        "[{}] {}",
+                        200.green().bold(),
+                        req_path
+                    );
+                }
 
                 response.status(200)
                     .header("Content-Type", mime.to_string())
@@ -94,9 +100,8 @@ impl<'me> Service<Request<IncomingBody>> for &'me SourceService {
 
 #[derive(Clone)]
 pub struct SourceResolver {
-    pub src: PathBuf,
-    pub authority: Authority,
-    pub framework: bool
+    pub root: PathBuf,
+    pub authority: Authority
 }
 
 impl SourceResolver {
@@ -156,7 +161,6 @@ impl SourceResolver {
                             match compiled {
                                 Ok(compiled) => body = compiled,
                                 Err(e) => {
-                                    log::error!("Sass problem: {}", e);
                                     return ResolvedSource::Fail {
                                         status: StatusCode::EXPECTATION_FAILED
                                     }
@@ -177,40 +181,19 @@ impl SourceResolver {
 
     async fn get_path_from_request(&self, req: Request<IncomingBody>) -> PathBuf {
         let uri = req.uri();
-        let mut base_folder = "static";
-
-        if req.headers()
-            .get("Nib-Variant")
-            .and_then(|hv| hv.to_str().ok()) == Some("component")
-        {
-            base_folder = "components";
-        }
-
-        let base_folder = if self.framework {
-            self.src.join(base_folder)
-        } else {
-            self.src.clone()
-        };
 
         let pathname = uri.path()
             .get(1..)
             .unwrap_or("")
             .to_owned();
 
-        let mut pages_path = self.src.clone();
-
-        if self.framework {
-            pages_path = pages_path.join("pages");
-        }
+        let path = self.root.join(pathname);
         
-        pages_path = pages_path.join(&pathname)
-            .join("index.html");
-
+        let pages_path = path.join("index.html");
         if tokio::fs::try_exists(&pages_path).await.unwrap_or(false) {
             return pages_path;
         } else {
-            return base_folder
-                .join(pathname);
+            return path;
         }
     }
 }

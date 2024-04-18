@@ -1,5 +1,6 @@
 use clap::Parser;
 use color_eyre::Result;
+use eyre::eyre;
 use http::uri::Authority;
 use hyper::server::conn::http1;
 use hyper_util::rt::TokioIo;
@@ -16,13 +17,10 @@ mod source;
 
 #[derive(Parser)]
 struct Cli {
-    path: PathBuf,
-
     #[arg(
-        long = "framework",
-        help = "Enable framework mode [TESTING ONLY]"
+        short = 'C'
     )]
-    framework: bool,
+    path: Option<PathBuf>,
 
     #[arg(
         short = 'p',
@@ -46,24 +44,19 @@ async fn main() -> Result<()> {
 
     color_eyre::install()?;
 
-    if args.log {
-        colog::init();
-    }
-
     let addr = SocketAddr::from(([127, 0, 0, 1], args.port));
     let listener = TcpListener::bind(addr).await?;
-    let src = if args.framework {
-        args.path.join("src")
-    } else {
-        args.path
-    };
+
+    let root = args.path.or_else(|| {
+        std::env::current_dir().ok()
+    }).ok_or(eyre!("No root path provided"))?;
 
     let service = SourceService::new(
         SourceResolver {
-            src,
-            authority,
-            framework: args.framework
-        }
+            root,
+            authority
+        },
+        args.log
     );
 
     loop {
