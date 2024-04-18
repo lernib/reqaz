@@ -3,9 +3,10 @@ use color_eyre::Result;
 use http::uri::Authority;
 use hyper::server::conn::http1;
 use hyper_util::rt::TokioIo;
-use source::SourceService;
+use source::{SourceResolver, SourceService};
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::str::FromStr;
 use tokio::net::TcpListener;
 
 mod html;
@@ -15,23 +16,46 @@ mod source;
 
 #[derive(Parser)]
 struct Cli {
-    path: PathBuf
+    path: PathBuf,
+
+    #[arg(
+        long = "framework",
+        help = "Enable framework mode [TESTING ONLY]"
+    )]
+    framework: bool,
+
+    #[arg(
+        short = 'p',
+        long = "port",
+        default_value = "5000"
+    )]
+    port: u16
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Cli::parse();
-    let authority = Authority::from_static("localhost:5000");
+    let authority = Authority::from_str(
+        &format!("localhost:{}", args.port)
+    )?;
 
     color_eyre::install()?;
     colog::init();
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 5000));
+    let addr = SocketAddr::from(([127, 0, 0, 1], args.port));
     let listener = TcpListener::bind(addr).await?;
+    let src = if args.framework {
+        args.path.join("src")
+    } else {
+        args.path
+    };
 
     let service = SourceService::new(
-        args.path.join("src"),
-        authority
+        SourceResolver {
+            src,
+            authority,
+            framework: args.framework
+        }
     );
 
     loop {

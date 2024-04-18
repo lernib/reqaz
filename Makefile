@@ -7,7 +7,7 @@ OLD_CLI_SOURCES=\
 
 
 website: dep_website
-	cargo run -p nib-website-cli -- $(PWD)/website
+	cargo run -p nib-website-cli -- $(PWD)/website --framework
 
 old_cli: dep_old_cli
 	node $(OLD_CLI_MAIN)

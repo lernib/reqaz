@@ -20,12 +20,7 @@ pub struct SourceService {
 }
 
 impl SourceService {
-    pub fn new(src: PathBuf, authority: Authority) -> Self {
-        let resolver = SourceResolver {
-            src,
-            authority
-        };
-
+    pub fn new(resolver: SourceResolver) -> Self {
         Self {
             resolver: Arc::new(resolver)
         }
@@ -70,9 +65,10 @@ impl<'me> Service<Request<IncomingBody>> for &'me SourceService {
 }
 
 #[derive(Clone)]
-struct SourceResolver {
+pub struct SourceResolver {
     pub src: PathBuf,
-    pub authority: Authority
+    pub authority: Authority,
+    pub framework: bool
 }
 
 impl SourceResolver {
@@ -162,21 +158,30 @@ impl SourceResolver {
             base_folder = "components";
         }
 
+        let base_folder = if self.framework {
+            self.src.join(base_folder)
+        } else {
+            self.src.clone()
+        };
+
         let pathname = uri.path()
             .get(1..)
             .unwrap_or("")
             .to_owned();
 
-        let pages_path = self.src
-            .join("pages")
-            .join(&pathname)
+        let mut pages_path = self.src.clone();
+
+        if self.framework {
+            pages_path = pages_path.join("pages");
+        }
+        
+        pages_path = pages_path.join(&pathname)
             .join("index.html");
 
         if tokio::fs::try_exists(&pages_path).await.unwrap_or(false) {
             return pages_path;
         } else {
-            return self.src
-                .join(base_folder)
+            return base_folder
                 .join(pathname);
         }
     }
