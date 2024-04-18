@@ -1,5 +1,7 @@
 use crate::html::process_html;
 use crate::mediatype::GetMediaType;
+use color_eyre::owo_colors::OwoColorize;
+use eyre::eyre;
 use http::uri::{Authority, Scheme};
 use http_body_util::Full;
 use hyper::{Request, Response, StatusCode, Uri};
@@ -30,6 +32,12 @@ impl SourceService {
         // type safety 😌
         Result<<&Self as Service<Request<IncomingBody>>>::Response, <&Self as Service<Request<IncomingBody>>>::Error>
     {
+        let req_path = req
+            .uri()
+            .path_and_query()
+            .ok_or(eyre!("Request somehow has no path"))?
+            .to_string();
+
         let source = self.resolver.resolve_source(req).await;
 
         let response = Response::builder();
@@ -37,6 +45,20 @@ impl SourceService {
             ResolvedSource::Fail {
                 status
             } => {
+                let status_colored = match status.as_u16() {
+                    100..=199 => status.blue().to_string(),
+                    300..=399 => status.yellow().to_string(),
+                    400..=499 => status.red().to_string(),
+                    500..=599 => status.purple().to_string(),
+                    _ => unreachable!()
+                };
+
+                println!(
+                    "[{}] {}",
+                    status_colored.bold(),
+                    req_path
+                );
+
                 response.status(status)
                     .body(Full::new(Bytes::default()))
             },
@@ -44,6 +66,12 @@ impl SourceService {
                 body,
                 mime
             } => {
+                println!(
+                    "[{}] {}",
+                    200.green().bold(),
+                    req_path
+                );
+
                 response.status(200)
                     .header("Content-Type", mime.to_string())
                     .body(Full::new(Bytes::from(body)))

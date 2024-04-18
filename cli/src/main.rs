@@ -29,7 +29,12 @@ struct Cli {
         long = "port",
         default_value = "5000"
     )]
-    port: u16
+    port: u16,
+
+    #[arg(
+        long = "log"
+    )]
+    log: bool
 }
 
 #[tokio::main]
@@ -40,7 +45,10 @@ async fn main() -> Result<()> {
     )?;
 
     color_eyre::install()?;
-    colog::init();
+
+    if args.log {
+        colog::init();
+    }
 
     let addr = SocketAddr::from(([127, 0, 0, 1], args.port));
     let listener = TcpListener::bind(addr).await?;
