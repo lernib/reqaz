@@ -25,15 +25,17 @@ impl FetchMod {
 }
 
 pub fn get_element_from_extension(ext: String) -> Option<Html> {
-    if ext == "css" || ext == "scss" {
-        return Some(Html::new_element(
-            QualName::new(None, ns!(html), local_name!("style")),
-            vec![]
-        ));
-    } else if ext == "html" {
-        return Some(Html::new(DocumentFragment));
-    } else {
-        return None;
+    match ext.as_str() {
+        "css" | "scss" => {
+            return Some(Html::new_element(
+                QualName::new(None, ns!(html), local_name!("style")),
+                vec![]
+            ));
+        },
+        "html" | "svg" => {
+            return Some(Html::new(DocumentFragment));
+        },
+        _ => None
     }
 }
 
@@ -42,19 +44,15 @@ pub fn insert_response(el: Html, resp: Response) -> Html {
         .unwrap_or(APPLICATION_OCTET_STREAM.into());
     let contents = resp.into_string().unwrap_or("".into());
 
-    match mime.to_string().as_str() {
-        "text/css" => {
-            el.append(Html::new_text(contents));
-        },
-        "text/html" => {
-            let html = kuchikiki::parse_html()
-                .one(contents);
+    if mime == TEXT_CSS {
+        el.append(Html::new_text(contents));
+    } else if mime == TEXT_HTML || mime == IMG_SVG_XML {
+        let html = kuchikiki::parse_html()
+            .one(contents);
 
-            for child in html.children() {
-                el.append(child);
-            }
-        },
-        _ => unimplemented!()
+        for child in html.children() {
+            el.append(child);
+        }
     }
 
     el
