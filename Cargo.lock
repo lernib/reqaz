@@ -879,26 +879,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
-name = "nib-website-cli"
-version = "0.1.0"
-dependencies = [
- "clap",
- "color-eyre",
- "eyre",
- "html5ever",
- "http",
- "http-body-util",
- "hyper",
- "hyper-util",
- "kuchikiki",
- "lightningcss",
- "mediatype",
- "rsass",
- "tokio",
- "ureq",
-]
-
-[[package]]
 name = "nodrop"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1389,6 +1369,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71fe3824f5629716b1589be05dacd749f6aa084c87e00e016714a8cdfccc997c"
 dependencies = [
  "bytecheck",
+]
+
+[[package]]
+name = "reqaz"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "color-eyre",
+ "eyre",
+ "html5ever",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "kuchikiki",
+ "lightningcss",
+ "mediatype",
+ "rsass",
+ "tokio",
+ "ureq",
 ]
 
 [[package]]
