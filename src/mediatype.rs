@@ -17,19 +17,21 @@ pub trait GetMediaType {
 }
 
 impl GetMediaType for Path {
+    #[inline]
     fn get_media_type(&self) -> Option<MediaType<'static>> {
-        let ext = self.extension()?.to_str()?;
-
-        Some(match ext {
-            "html" => TEXT_HTML,
-            "css" => TEXT_CSS,
-            "scss" => TEXT_CSS,
-            "svg" => IMG_SVG_XML,
-            "jpeg" => IMG_JPEG,
-            "png" => IMG_PNG,
-            "webp" => IMG_WEBP,
-            "gif" => IMG_GIF,
-            _ => APPLICATION_OCTET_STREAM
-        })
+        self.extension()
+            .and_then(|oss| oss.to_str())
+            .map(|ext| {
+                match ext {
+                    "html" => TEXT_HTML,
+                    "css" | "scss" => TEXT_CSS,
+                    "svg" => IMG_SVG_XML,
+                    "jpeg" => IMG_JPEG,
+                    "png" => IMG_PNG,
+                    "webp" => IMG_WEBP,
+                    "gif" => IMG_GIF,
+                    _ => APPLICATION_OCTET_STREAM
+                }
+            })
     }
 }

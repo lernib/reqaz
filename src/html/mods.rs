@@ -1,59 +1,69 @@
 use eyre::eyre;
-use eyre::Result;
 use hyper::Uri;
 use std::collections::HashMap;
+use super::Html;
 
-pub use super::Html;
-
+/// The CSS internal mod, which bundles all
+/// `style` tags into one and minifies them.
+/// This should be applied after all fetches.
 mod css;
+
+/// The fetch internal mod, which fetches any
+/// resources with an `href` and fetch mod request.
 mod fetch;
 
+/// reqaz HTML mod Error type
+pub type Error = eyre::Report;
 
+/// The reqaz HTML mod trait
 pub trait HtmlMod {
-    fn modify(&self, html: Html) -> Result<Html>;
+    /// Modify some HTML, and return the result.
+    fn modify(&self, html: Html) -> Result<Html, Error>;
 }
 
+/// An HTML mod manager, used to load mods ahead of time without
+/// creating them multiple times per request.
 pub struct HtmlModManager {
-    page_uri: Uri,
-    mod_cache: HashMap<String, Box<dyn HtmlMod>>
+    /// The URI of the currently loading asset
+    pub page_uri: Uri,
+
+    /// The mod cache
+    pub mod_cache: HashMap<String, Box<dyn HtmlMod>>
 }
 
 impl HtmlModManager {
-    pub fn new(page_uri: Uri) -> Self {
-        HtmlModManager {
-            page_uri,
-            mod_cache: Default::default()
-        }
-    }
-
-    fn load_mod(&mut self, mod_: &str) -> Option<Box<dyn HtmlMod>> {
-        let mod_: Box<dyn HtmlMod> = match mod_ {
+    /// Load an internal mod
+    fn load_mod(&mut self, mod_name: &str) -> Option<Box<dyn HtmlMod>> {
+        let mod_box: Box<dyn HtmlMod> = match mod_name {
             "fetch" => Box::new(fetch::FetchMod::new(self.page_uri.clone())),
-            "css" => Box::new(css::CssMod::default()),
+            "css" => Box::<css::CssMod>::default(),
             _ => return None
         };
 
-        Some(mod_)
+        Some(mod_box)
     }
 
+    /// Load a set of internal mods
     pub fn load_mods<const N: usize>(&mut self, mods: [&str; N]) {
         for mod_name in mods {
             if let Some(mod_) = self.load_mod(mod_name) {
                 self.mod_cache.insert(
-                    mod_name.to_string(),
+                    mod_name.to_owned(),
                     mod_
                 );
             }
         }
     }
 
+    /// Get a specific internal mod
     fn get_mod(&self, mod_name: &str) -> Option<&Box<dyn HtmlMod>> {
         self.mod_cache.get(mod_name)
     }
 
-    pub fn apply_mod(&self, html: Html, mod_name: &str) -> Result<Html> {
+    /// Apply a mod to an HTML fragment, returning the result
+    pub fn apply_mod(&self, html: Html, mod_name: &str) -> Result<Html, Error> {
         self.get_mod(mod_name)
             .ok_or(eyre!("Mod does not exist"))
-            .map(|mod_| mod_.modify(html))?
+            .and_then(|mod_| mod_.modify(html))
     }
 }

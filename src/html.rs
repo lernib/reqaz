@@ -1,26 +1,45 @@
-use color_eyre::Result;
 use hyper::Uri;
-use kuchikiki::traits::*;
+use kuchikiki::traits::TendrilSink;
 use self::mods::HtmlModManager;
 
+/// Utilities for HTML element attributes
 mod attr;
-mod mods;
+
+/// reqaz-builtin HTML mods
+pub(crate) mod mods;
 
 
 pub type Html = kuchikiki::NodeRef;
 
-const MOD_NAMES: [&str; 2] = ["fetch", "css"];
+/// Apply internal mods to a parsed HTML segment
+macro_rules! apply_internal_mods {
+    ($uri:ident, $dom:ident, [$($mod_name:literal),*]) => {
+        {
+            let mut mod_manager = HtmlModManager {
+                page_uri: $uri.clone(),
+                mod_cache: Default::default()
+            };
 
-pub fn process_html(uri: &Uri, html: String) -> Result<String> {
-    let mut mod_manager = HtmlModManager::new(uri.clone());
-    mod_manager.load_mods(MOD_NAMES);
+            mod_manager.load_mods([$($mod_name),*]);
 
-    let mut html = kuchikiki::parse_html()
-        .one(html);
+            Ok($dom)
+                $(
+                    .and_then(|new_dom| mod_manager.apply_mod(new_dom, $mod_name))
+                )*
+                .map(|new_dom| new_dom.to_string())
+        }
+    };
+}
 
-    for mod_name in MOD_NAMES {
-        html = mod_manager.apply_mod(html, mod_name)?;
-    }
+/// Process HTML using reqaz-builtin mods and kuchikiki
+/// 
+/// # Errors
+/// 
+/// Any mod errors are propagated up to the caller.
+#[inline]
+#[allow(clippy::module_name_repetitions)]
+pub fn process_html(uri: &Uri, html: String) -> Result<String, mods::Error> {
+    let dom = kuchikiki::parse_html().one(html);
 
-    Ok(html.to_string())
+    apply_internal_mods!(uri, dom, ["fetch", "css"])
 }

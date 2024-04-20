@@ -1,28 +1,42 @@
+extern crate alloc;
+
+use alloc::sync::Arc;
+use core::fmt::Display;
+use core::future::Future;
+use core::pin::Pin;
 use crate::html::process_html;
-use crate::mediatype::GetMediaType;
+use crate::html::mods::Error as ModError;
+use crate::mediatype::{GetMediaType, TEXT_HTML};
 use color_eyre::owo_colors::OwoColorize;
-use eyre::eyre;
-use http::uri::{Authority, Scheme};
+use http::uri::{Authority, InvalidUriParts, Scheme};
 use http_body_util::Full;
 use hyper::{Request, Response, StatusCode, Uri};
 use hyper::body::Bytes;
 use hyper::body::Incoming as IncomingBody;
 use hyper::service::Service;
-use mediatype::{media_type, MediaType};
-use std::future::Future;
+use mediatype::MediaType;
+use rsass::output::Format as RsassFormat;
 use std::io::ErrorKind as IoErrorKind;
-use std::path::PathBuf;
-use std::pin::Pin;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
 
 
+/// The source service, used with hyper
 #[derive(Clone)]
+#[allow(clippy::module_name_repetitions)]
 pub struct SourceService {
+    /// The resolver to use. This is made by the client of
+    /// the library, and is supplied at creation time.
     resolver: Arc<SourceResolver>,
+
+    /// Whether to log or not
     log: bool
 }
 
+
+
 impl SourceService {
+    /// Create a new source service
+    #[inline]
     pub fn new(resolver: SourceResolver, log: bool) -> Self {
         Self {
             resolver: Arc::new(resolver),
@@ -30,6 +44,7 @@ impl SourceService {
         }
     }
 
+    /// Handle a hyper request, passed by the service trait
     async fn handle_request(&self, req: Request<IncomingBody>) ->
         // type safety 😌
         Result<<&Self as Service<Request<IncomingBody>>>::Response, <&Self as Service<Request<IncomingBody>>>::Error>
@@ -37,148 +52,160 @@ impl SourceService {
         let req_path = req
             .uri()
             .path_and_query()
-            .ok_or(eyre!("Request somehow has no path"))?
-            .to_string();
+            .map(ToString::to_string);
 
         let source = self.resolver.resolve_source(req).await;
 
         let response = Response::builder();
-        let response = match source {
-            ResolvedSource::Fail {
-                status
-            } => {
-                if self.log {
-                    let status_colored = match status.as_u16() {
-                        100..=199 => status.blue().to_string(),
-                        300..=399 => status.yellow().to_string(),
-                        400..=499 => status.red().to_string(),
-                        500..=599 => status.purple().to_string(),
-                        _ => unreachable!()
-                    };
-
-                    println!(
-                        "[{}] {}",
-                        status_colored.bold(),
-                        req_path
-                    );
+        
+        match source {
+            Err(err) => {
+                match err {
+                    ResolverError::NotFound => self.log_source_request(StatusCode::NOT_FOUND, req_path),
+                    ResolverError::ServerIssue |
+                    ResolverError::InvalidUriParts(_) |
+                    ResolverError::NoMimeFound |
+                    ResolverError::WasNotUtf8 |
+                    ResolverError::ModProblem(_) |
+                    ResolverError::ParseAsMime |
+                    ResolverError::Http(_) => self.log_source_request(StatusCode::INTERNAL_SERVER_ERROR, req_path)
                 }
 
-                response.status(status)
-                    .body(Full::new(Bytes::default()))
+                Err(err)
             },
-            ResolvedSource::Success {
+            Ok(Resolved {
                 body,
                 mime
-            } => {
+            }) => {
                 if self.log {
-                    println!(
-                        "[{}] {}",
-                        200.green().bold(),
-                        req_path
-                    );
+                    #[allow(clippy::print_stdout)]
+                    if let Some(path) = req_path {
+                        println!(
+                            "[{}] {}",
+                            200i16.green().bold(),
+                            path
+                        );
+                    }
                 }
 
                 response.status(200)
                     .header("Content-Type", mime.to_string())
                     .body(Full::new(Bytes::from(body)))
+                    .map_err(ResolverError::Http)
             }
-        }?;
+        }
+    }
 
-        Ok(response)
+    /// Log a request to the console, if logging is enabled
+    fn log_source_request(&self, status: StatusCode, req_path: Option<String>) {
+        if self.log {
+            let status_colored = match status.as_u16() {
+                100..=199 => status.blue().to_string(),
+                300..=399 => status.yellow().to_string(),
+                400..=499 => status.red().to_string(),
+                500..=599 => status.purple().to_string(),
+                _ => status.to_string()
+            };
+        
+            #[allow(clippy::print_stdout)]
+            if let Some(path) = req_path {
+                println!(
+                    "[{}] {}",
+                    status_colored.bold(),
+                    path
+                );
+            }
+        }
     }
 }
 
 impl<'me> Service<Request<IncomingBody>> for &'me SourceService {
     type Response = Response<Full<Bytes>>;
-    type Error = color_eyre::Report;
+    type Error = ResolverError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'me>>;
 
+    #[inline]
     fn call(&self, req: Request<IncomingBody>) -> Self::Future {
         Box::pin(self.handle_request(req))
     }
 }
 
+/// Resolver for `SourceService`
 #[derive(Clone)]
+#[non_exhaustive]
+#[allow(clippy::module_name_repetitions)]
 pub struct SourceResolver {
+    /// Root to serve from
     pub root: PathBuf,
+
+    /// URL being served from, used to base path fetches
     pub authority: Authority
 }
 
 impl SourceResolver {
-    async fn resolve_source(&self, req: Request<IncomingBody>) -> ResolvedSource {
-        let uri = req.uri();
+    /// Create a source resolver
+    #[inline]
+    pub const fn new(root: PathBuf, authority: Authority) -> Self {
+        Self {
+            root,
+            authority
+        }
+    }
 
-        let mut parts = uri.clone().into_parts();
+    /// Resolve source content from request object from hyper
+    async fn resolve_source(&self, req: Request<IncomingBody>) -> Result<Resolved, ResolverError> {
+        let uri_old: Uri = req.uri().clone();
+
+        let mut parts = uri_old.into_parts();
         parts.scheme = Some(Scheme::HTTP);
         parts.authority = Some(self.authority.clone());
 
-        let uri = Uri::from_parts(parts)
-            .unwrap_or_else(|_| unreachable!());
-
         let path = self.get_path_from_request(req).await;
-        let mime = path.get_media_type().clone();
 
-        if let Some(mime) = mime {
-            return tokio::fs::read(path)
-                .await
-                .map_or_else(
-                    |e| {
-                        let status = match e.kind() {
-                            IoErrorKind::NotFound => StatusCode::NOT_FOUND,
-                            _ => StatusCode::INTERNAL_SERVER_ERROR
-                        };
-
-                        ResolvedSource::Fail {
-                            status
-                        }
-                    },
-                    |s| {
-                        let mut body = s;
-
-                        if mime == media_type!(TEXT/HTML) {
-                            let body_str = String::from_utf8(body);
-                            if let Ok(body_str) = body_str {
-
-                                let new_body = process_html(&uri, body_str);
-
-                                if let Ok(b) = new_body {
-                                    body = b.bytes().collect()
-                                } else {
-                                    eprintln!("Error serving request: {}", new_body.unwrap_err());
-
-                                    return ResolvedSource::Fail {
-                                        status: StatusCode::FAILED_DEPENDENCY
-                                    }
-                                }
-                            } else {
-                                return ResolvedSource::Fail {
-                                    status: StatusCode::EXPECTATION_FAILED
-                                }
-                            }
-                        } else if uri.path().ends_with(".scss") {
-                            let compiled = rsass::compile_scss(&body, Default::default());
-
-                            match compiled {
-                                Ok(compiled) => body = compiled,
-                                Err(e) => {
-                                    return ResolvedSource::Fail {
-                                        status: StatusCode::EXPECTATION_FAILED
-                                    }
-                                }
-                            }
-                        }
-
-                        ResolvedSource::Success {
-                            body,
-                            mime: mime.into()
-                        }
+        #[allow(clippy::absolute_paths)]
+        tokio::fs::read(&path).await
+            .map_err(|err| {
+                #[allow(clippy::wildcard_enum_match_arm)]
+                match err.kind() {
+                    IoErrorKind::NotFound => ResolverError::NotFound,
+                    _ => ResolverError::ServerIssue
+                }
+            }).and_then(|src |{
+                path.get_media_type()
+                    .clone()
+                    .ok_or(ResolverError::NoMimeFound)
+                    .map(|mime| (src, mime))
+            }).and_then(|(src, mime)| {
+                Uri::from_parts(parts)
+                    .map_err(ResolverError::InvalidUriParts)
+                    .map(|uri| (src, mime, uri))
+            }).and_then(|(src, mime, uri)| {
+                let body = {
+                    if mime == TEXT_HTML {
+                        String::from_utf8(src)
+                            .map_err(|_err| ResolverError::WasNotUtf8)
+                            .and_then(|body_str| {
+                                process_html(&uri, body_str)
+                                    .map_err(ResolverError::ModProblem)
+                            }).map(|new_body| new_body.bytes().collect())
+                    } else if Path::new(uri.path())
+                        .extension()
+                        .map_or(false, |ext| ext.eq_ignore_ascii_case("scss")) {
+                        rsass::compile_scss(&src, RsassFormat::default())
+                            .map_err(|_err| ResolverError::ParseAsMime)
+                    } else {
+                        Ok(src)
                     }
-                )
-        }
+                };
 
-        ResolvedSource::Fail { status: StatusCode::INTERNAL_SERVER_ERROR }
+                body.map(|body_vec| Resolved {
+                    body: body_vec,
+                    mime
+                })
+            })
     }
 
+    /// Get the path for a resource request
     async fn get_path_from_request(&self, req: Request<IncomingBody>) -> PathBuf {
         let uri = req.uri();
 
@@ -190,21 +217,72 @@ impl SourceResolver {
         let path = self.root.join(pathname);
         
         let pages_path = path.join("index.html");
+
+        #[allow(clippy::absolute_paths)]
         if tokio::fs::try_exists(&pages_path).await.unwrap_or(false) {
-            return pages_path;
+            pages_path
         } else {
-            return path;
+            path
         }
     }
 }
 
-enum ResolvedSource {
-    Fail {
-        status: StatusCode
-    },
+/// A resolved resource
+struct Resolved {
+    /// The body of the resolved resource, as bytes
+    body: Vec<u8>,
 
-    Success {
-        body: Vec<u8>,
-        mime: MediaType<'static>
+    /// The mime type
+    mime: MediaType<'static>
+}
+
+/// Any error that can be returned by the source resolver
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum ResolverError {
+    /// Could not properly construct a URI
+    InvalidUriParts(InvalidUriParts),
+
+    /// Mime could not be found (did you try to resolve a folder without an index.html?)
+    NoMimeFound,
+
+    /// Resource not found
+    NotFound,
+
+    /// There was a server issue
+    ServerIssue,
+
+    /// Expected UTF8, but resource contents were not
+    WasNotUtf8,
+
+    /// There was an error running a mod
+    ModProblem(ModError),
+
+    /// There was a problem parsing an expected mime type
+    ParseAsMime,
+
+    /// HTTP problems
+    Http(http::Error)
+}
+
+#[allow(clippy::missing_trait_methods)]
+#[allow(clippy::absolute_paths)]
+impl std::error::Error for ResolverError {}
+
+#[allow(clippy::absolute_paths)]
+#[allow(clippy::pattern_type_mismatch)]
+impl Display for ResolverError {
+    #[inline]
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::InvalidUriParts(iup) => iup.fmt(formatter),
+            Self::NoMimeFound => formatter.write_str("No mime found (did you try to resolve a folder without an index.html?)"),
+            Self::NotFound => formatter.write_str("Resource not found"),
+            Self::ServerIssue => formatter.write_str("There was a server issue"),
+            Self::WasNotUtf8 => formatter.write_str("Expected UTF8, but resource contents were not"),
+            Self::ModProblem(err) => formatter.write_fmt(format_args!("There was a mod problem: {err}")),
+            Self::ParseAsMime => formatter.write_str("There was a problem parsing an expected mime type"),
+            Self::Http(err) => err.fmt(formatter)
+        }
     }
 }
