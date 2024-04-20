@@ -9,8 +9,8 @@ keywords = ["requests", "modify", "http", "html"]
 categories = ["template-engine", "web-programming"]
 
 [dependencies]
-clap = { version = "4.5.4", features = ["derive"] }
-color-eyre = "0.6.3"
+clap = { version = "4.5.4", features = ["derive"], optional = true }
+color-eyre = { version = "0.6.3" }
 eyre = "0.6.12"
 html5ever = "0.26.0"
 http = "1"
@@ -21,5 +21,12 @@ kuchikiki = "0.8.2"
 lightningcss = { version = "1.0.0-alpha.55", features = ["into_owned"] }
 mediatype = "0.19.18"
 rsass = "0.28.8"
+serde = { version = "1.0.198", features = ["derive"], optional = true }
+serde_json = { version = "1.0.116", optional = true }
 tokio = { version = "1.37.0", features = ["macros", "fs", "net", "rt-multi-thread"] }
 ureq = "2.9.6"
+
+[features]
+default = ["cli"]
+cli = ["dep:clap", "dep:serde", "dep:serde_json"]
+serde_json = ["dep:serde_json"]

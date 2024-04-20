@@ -29,13 +29,14 @@ use http::uri::Authority;
 use hyper::server::conn::http1;
 use hyper_util::rt::TokioIo;
 use reqaz::source::{SourceResolver, SourceService};
+use serde::{Serialize, Deserialize};
 use std::env::current_dir;
 use std::path::PathBuf;
 use tokio::net::TcpListener;
 use tokio::task::spawn as tokio_spawn;
 
 
-/// CLI parsing struct, courtesy of clap
+/// Requests from A to Z
 #[derive(Parser)]
 struct Cli {
     /// The path to serve from
@@ -48,37 +49,50 @@ struct Cli {
     #[arg(
         short = 'p',
         long = "port",
-        default_value = "5000"
     )]
-    port: u16,
+    port: Option<u16>,
 
     /// Whether to print logs on request status
     #[arg(
         long = "log"
     )]
-    log: bool
+    log: Option<bool>
 }
 
 #[tokio::main]
 #[allow(clippy::question_mark_used)]
+#[allow(clippy::absolute_paths)]
 async fn main() -> Result<()> {
-    let args = Cli::parse();
-    let authority = Authority::from_str(
-        &format!("localhost:{}", args.port)
-    )?;
-
     color_eyre::install()?;
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], args.port));
+    let args = Cli::parse();
+    let config = {
+        let base_config = CliConfig::default();
+
+        if PathBuf::from("./reqaz.json").exists() {
+            let json_contents = tokio::fs::read_to_string("./reqaz.json").await?;
+            let json_config: CliConfig = serde_json::from_str(&json_contents)?;
+
+            Ok::<CliConfig, eyre::Error>(json_config.override_with_cli(args))
+        } else {
+            Ok(base_config.override_with_cli(args))
+        }
+    }?;
+
+    let authority = Authority::from_str(
+        &format!("localhost:{}", config.port)
+    )?;
+
+    let addr = SocketAddr::from(([127, 0, 0, 1], config.port));
     let listener = TcpListener::bind(addr).await?;
 
-    let root = args.path.or_else(|| {
+    let root = config.root.or_else(|| {
         current_dir().ok()
     }).ok_or(eyre!("No root path provided"))?;
 
     let service = SourceService::new(
         SourceResolver::new(root, authority),
-        args.log
+        config.log
     );
 
     loop {
@@ -96,5 +110,48 @@ async fn main() -> Result<()> {
                 eprintln!("Error serving request: {err}");
             }
         });
+    }
+}
+
+/// Base CLI configuration (reqaz.json)
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(default)]
+struct CliConfig {
+    /// The root folder to serve from
+    pub root: Option<PathBuf>,
+
+    /// The port to serve from
+    pub port: u16,
+
+    /// Enable logging
+    pub log: bool
+}
+
+impl CliConfig {
+    /// Override config with CLI options manually
+    pub fn override_with_cli(mut self, cli: Cli) -> Self {
+        if let Some(root) = cli.path {
+            self.root = Some(root);
+        }
+
+        if let Some(port) = cli.port {
+            self.port = port;
+        }
+
+        if let Some(log) = cli.log {
+            self.log = log;
+        }
+
+        self
+    }
+}
+
+impl Default for CliConfig {
+    fn default() -> Self {
+        Self {
+            root: None,
+            port: 5000,
+            log: false
+        }
     }
 }

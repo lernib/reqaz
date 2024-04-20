@@ -1387,6 +1387,8 @@ dependencies = [
  "lightningcss",
  "mediatype",
  "rsass",
+ "serde",
+ "serde_json",
  "tokio",
  "ureq",
 ]
