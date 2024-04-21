@@ -1,6 +1,8 @@
 use eyre::eyre;
 use hyper::Uri;
 use std::collections::HashMap;
+use crate::source::SourceResolver;
+
 use super::Html;
 
 /// The CSS internal mod, which bundles all
@@ -28,15 +30,18 @@ pub struct HtmlModManager {
     pub page_uri: Uri,
 
     /// The mod cache
-    pub mod_cache: HashMap<String, Box<dyn HtmlMod>>
+    pub mod_cache: HashMap<String, Box<dyn HtmlMod>>,
+
+    /// A resolver, for the fetch internal mod
+    pub resolver: SourceResolver
 }
 
 impl HtmlModManager {
     /// Load an internal mod
     fn load_mod(&mut self, mod_name: &str) -> Option<Box<dyn HtmlMod>> {
         let mod_box: Box<dyn HtmlMod> = match mod_name {
-            "fetch" => Box::new(fetch::FetchMod::new(self.page_uri.clone())),
-            "css" => Box::<css::CssMod>::default(),
+            "fetch" => Box::new(fetch::Mod::new(self.page_uri.clone(), self.resolver.clone())),
+            "css" => Box::<css::Mod>::default(),
             _ => return None
         };
 

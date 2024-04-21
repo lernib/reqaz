@@ -20,8 +20,7 @@ use super::Html;
 /// using Default, but it needs a struct to implement
 /// `HtmlMod`.
 #[derive(Default)]
-#[allow(clippy::module_name_repetitions)]
-pub struct CssMod;
+pub struct Mod;
 
 /// Minify a CSS string
 #[allow(clippy::single_call_fn)]
@@ -43,8 +42,8 @@ fn minify_css(css: &str) -> Result<String, MinifyCssError> {
         ).map(|res| res.code)
 }
 
-impl HtmlMod for CssMod {
-    fn modify(&self, html: super::Html) -> Result<Html> {
+impl HtmlMod for Mod {
+    fn modify(&self, html: super::Html) -> Result<Html, eyre::Error> {
         let styles: Vec<_> = html.select("style")
             .map(|sels| sels.into_iter().collect())
             .unwrap_or_default();

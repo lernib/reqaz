@@ -20,12 +20,12 @@
 #![allow(clippy::implicit_return)]
 #![allow(clippy::unseparated_literal_suffix)]
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use color_eyre::Result;
 use core::net::SocketAddr;
 use core::str::FromStr;
 use eyre::eyre;
-use http::uri::Authority;
+use http::uri::{Uri, Authority};
 use hyper::server::conn::http1;
 use hyper_util::rt::TokioIo;
 use reqaz::source::{SourceResolver, SourceService};
@@ -56,7 +56,18 @@ struct Cli {
     #[arg(
         long = "log"
     )]
-    log: Option<bool>
+    log: Option<bool>,
+
+    /// Subcommand to run
+    #[clap(subcommand)]
+    subcommand: Option<SubCli>
+}
+
+/// Subcommand to run
+#[derive(Subcommand)]
+enum SubCli {
+    /// Serve files in root, do not build pipelines
+    Serve
 }
 
 #[tokio::main]
@@ -73,9 +84,9 @@ async fn main() -> Result<()> {
             let json_contents = tokio::fs::read_to_string("./reqaz.json").await?;
             let json_config: CliConfig = serde_json::from_str(&json_contents)?;
 
-            Ok::<CliConfig, eyre::Error>(json_config.override_with_cli(args))
+            Ok::<CliConfig, eyre::Error>(json_config.override_with_cli(&args))
         } else {
-            Ok(base_config.override_with_cli(args))
+            Ok(base_config.override_with_cli(&args))
         }
     }?;
 
@@ -86,30 +97,62 @@ async fn main() -> Result<()> {
     let addr = SocketAddr::from(([127, 0, 0, 1], config.port));
     let listener = TcpListener::bind(addr).await?;
 
-    let root = config.root.or_else(|| {
+    let root = config.clone().root.or_else(|| {
         current_dir().ok()
     }).ok_or(eyre!("No root path provided"))?;
 
-    let service = SourceService::new(
-        SourceResolver::new(root, authority),
-        config.log
-    );
+    let generate_config = config.generate;
+    let resolver = SourceResolver::new(root, authority);
 
-    loop {
-        let (stream, _) = listener.accept().await?;
-        let io = TokioIo::new(stream);
+    let generate_optional = {
+        if matches!(args.subcommand, Some(SubCli::Serve)) {
+            None
+        } else {
+            generate_config
+        }
+    };
 
-        let service_clone = service.clone();
+    #[allow(clippy::print_stdout)]
+    if let Some(generate) = generate_optional {
+        for pipeline in &generate.pipelines {
+            let out_path = generate.output_dir.clone().join(pipeline.output.clone());
 
-        #[allow(clippy::print_stderr)]
-        tokio_spawn(async move {
-            if let Err(err) = http1::Builder::new()
-                .serve_connection(io, &service_clone)
-                .await
-            {
-                eprintln!("Error serving request: {err}");
+            if let Ok(resolved) = resolver.resolve_source(&pipeline.input) {
+                tokio::fs::create_dir_all(out_path.parent().unwrap_or(&generate.output_dir)).await?;
+                tokio::fs::write(out_path, resolved.body).await?;
             }
-        });
+        }
+
+        println!("Generated {} pipelines.", generate.pipelines.len());
+
+        Ok(())
+    } else {
+        let service = SourceService::new(
+            resolver,
+            config.log
+        );
+
+        // gee thanks clippy, that's the whole point
+        #[allow(clippy::infinite_loop)]
+        loop {
+            let accepted = listener.accept().await;
+
+            if let Ok((stream, _)) = accepted {
+                let io = TokioIo::new(stream);
+
+                let service_clone = service.clone();
+
+                #[allow(clippy::print_stderr)]
+                tokio_spawn(async move {
+                    if let Err(err) = http1::Builder::new()
+                        .serve_connection(io, &service_clone)
+                        .await
+                    {
+                        eprintln!("Error serving request: {err}");
+                    }
+                });
+            }
+        }
     }
 }
 
@@ -124,13 +167,16 @@ struct CliConfig {
     pub port: u16,
 
     /// Enable logging
-    pub log: bool
+    pub log: bool,
+
+    /// Generate options
+    pub generate: Option<GenerateConfig>
 }
 
 impl CliConfig {
     /// Override config with CLI options manually
-    pub fn override_with_cli(mut self, cli: Cli) -> Self {
-        if let Some(root) = cli.path {
+    pub fn override_with_cli(mut self, cli: &Cli) -> Self {
+        if let Some(root) = cli.path.clone() {
             self.root = Some(root);
         }
 
@@ -151,7 +197,29 @@ impl Default for CliConfig {
         Self {
             root: None,
             port: 5000,
-            log: false
+            log: false,
+            generate: None
         }
     }
+}
+
+/// Generation configuration
+#[derive(Serialize, Deserialize, Clone)]
+struct GenerateConfig {
+    /// The final output directory of files
+    pub output_dir: PathBuf,
+
+    /// List of pipelines to run
+    pub pipelines: Vec<PipelineConfig>
+}
+
+/// Pipeline configuration
+#[derive(Serialize, Deserialize, Clone)]
+struct PipelineConfig {
+    /// The input URI
+    #[serde(with = "http_serde::uri")]
+    pub input: Uri,
+
+    /// The output path, relative to the output dir
+    pub output: PathBuf
 }

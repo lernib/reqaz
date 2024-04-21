@@ -1,3 +1,4 @@
+use crate::source::SourceResolver;
 use hyper::Uri;
 use kuchikiki::traits::TendrilSink;
 use self::mods::HtmlModManager;
@@ -13,11 +14,12 @@ pub type Html = kuchikiki::NodeRef;
 
 /// Apply internal mods to a parsed HTML segment
 macro_rules! apply_internal_mods {
-    ($uri:ident, $dom:ident, [$($mod_name:literal),*]) => {
+    ($resolver:ident, $uri:ident, $dom:ident, [$($mod_name:literal),*]) => {
         {
             let mut mod_manager = HtmlModManager {
                 page_uri: $uri.clone(),
-                mod_cache: Default::default()
+                mod_cache: Default::default(),
+                resolver: $resolver.clone()
             };
 
             mod_manager.load_mods([$($mod_name),*]);
@@ -38,8 +40,8 @@ macro_rules! apply_internal_mods {
 /// Any mod errors are propagated up to the caller.
 #[inline]
 #[allow(clippy::module_name_repetitions)]
-pub fn process_html(uri: &Uri, html: String) -> Result<String, mods::Error> {
+pub fn process_html(resolver: &SourceResolver, uri: &Uri, html: String) -> Result<String, mods::Error> {
     let dom = kuchikiki::parse_html().one(html);
 
-    apply_internal_mods!(uri, dom, ["fetch", "css"])
+    apply_internal_mods!(resolver, uri, dom, ["fetch", "css"])
 }

@@ -5,7 +5,6 @@ use core::fmt::Display;
 use core::future::Future;
 use core::pin::Pin;
 use crate::html::process_html;
-use crate::html::mods::Error as ModError;
 use crate::mediatype::{GetMediaType, TEXT_HTML};
 use color_eyre::owo_colors::OwoColorize;
 use http::uri::{Authority, InvalidUriParts, Scheme};
@@ -45,6 +44,7 @@ impl SourceService {
     }
 
     /// Handle a hyper request, passed by the service trait
+    #[allow(clippy::unused_async)]
     async fn handle_request(&self, req: Request<IncomingBody>) ->
         // type safety 😌
         Result<<&Self as Service<Request<IncomingBody>>>::Response, <&Self as Service<Request<IncomingBody>>>::Error>
@@ -54,7 +54,7 @@ impl SourceService {
             .path_and_query()
             .map(ToString::to_string);
 
-        let source = self.resolver.resolve_source(req).await;
+        let source = self.resolver.resolve_source(req.uri());
 
         let response = Response::builder();
         
@@ -152,18 +152,23 @@ impl SourceResolver {
         }
     }
 
-    /// Resolve source content from request object from hyper
-    async fn resolve_source(&self, req: Request<IncomingBody>) -> Result<Resolved, ResolverError> {
-        let uri_old: Uri = req.uri().clone();
+    /// Resolve source content from request object from URI
+    /// 
+    /// # Errors
+    /// 
+    /// Any errors that occur while resolving the URI are propogated
+    #[inline]
+    pub fn resolve_source(&self, uri: &Uri) -> Result<Resolved, ResolverError> {
+        let uri_old: Uri = uri.clone();
 
         let mut parts = uri_old.into_parts();
         parts.scheme = Some(Scheme::HTTP);
         parts.authority = Some(self.authority.clone());
 
-        let path = self.get_path_from_request(req).await;
+        let path = self.get_path_from_uri(uri);
 
         #[allow(clippy::absolute_paths)]
-        tokio::fs::read(&path).await
+        let src_mime_uri_fallible = std::fs::read(&path)
             .map_err(|err| {
                 #[allow(clippy::wildcard_enum_match_arm)]
                 match err.kind() {
@@ -178,16 +183,23 @@ impl SourceResolver {
             }).and_then(|(src, mime)| {
                 Uri::from_parts(parts)
                     .map_err(ResolverError::InvalidUriParts)
-                    .map(|uri| (src, mime, uri))
-            }).and_then(|(src, mime, uri)| {
+                    .map(|uri_new| (src, mime, uri_new))
+            });
+        
+        match src_mime_uri_fallible {
+            Ok((src, mime, uri_new)) => {
                 let body = {
                     if mime == TEXT_HTML {
-                        String::from_utf8(src)
-                            .map_err(|_err| ResolverError::WasNotUtf8)
-                            .and_then(|body_str| {
-                                process_html(&uri, body_str)
+                        let body_str_fallible = String::from_utf8(src)
+                            .map_err(|_err| ResolverError::WasNotUtf8);
+
+                        match body_str_fallible {
+                            Ok(body_str) => {
+                                process_html(self, &uri_new, body_str)
                                     .map_err(ResolverError::ModProblem)
-                            }).map(|new_body| new_body.bytes().collect())
+                            },
+                            Err(err) => Err(err)
+                        }.map(|new_body| new_body.bytes().collect())
                     } else if Path::new(uri.path())
                         .extension()
                         .map_or(false, |ext| ext.eq_ignore_ascii_case("scss")) {
@@ -202,13 +214,13 @@ impl SourceResolver {
                     body: body_vec,
                     mime
                 })
-            })
+            },
+            Err(err) => Err(err)
+        }
     }
 
     /// Get the path for a resource request
-    async fn get_path_from_request(&self, req: Request<IncomingBody>) -> PathBuf {
-        let uri = req.uri();
-
+    fn get_path_from_uri(&self, uri: &Uri) -> PathBuf {
         let pathname = uri.path()
             .get(1..)
             .unwrap_or("")
@@ -219,7 +231,7 @@ impl SourceResolver {
         let pages_path = path.join("index.html");
 
         #[allow(clippy::absolute_paths)]
-        if tokio::fs::try_exists(&pages_path).await.unwrap_or(false) {
+        if pages_path.exists() {
             pages_path
         } else {
             path
@@ -228,12 +240,13 @@ impl SourceResolver {
 }
 
 /// A resolved resource
-struct Resolved {
+#[non_exhaustive]
+pub struct Resolved {
     /// The body of the resolved resource, as bytes
-    body: Vec<u8>,
+    pub body: Vec<u8>,
 
     /// The mime type
-    mime: MediaType<'static>
+    pub mime: MediaType<'static>
 }
 
 /// Any error that can be returned by the source resolver
@@ -256,7 +269,7 @@ pub enum ResolverError {
     WasNotUtf8,
 
     /// There was an error running a mod
-    ModProblem(ModError),
+    ModProblem(eyre::Report),
 
     /// There was a problem parsing an expected mime type
     ParseAsMime,
