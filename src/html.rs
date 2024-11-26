@@ -1,14 +1,13 @@
+use self::mods::HtmlModManager;
 use crate::source::SourceResolver;
 use hyper::Uri;
 use kuchikiki::traits::TendrilSink;
-use self::mods::HtmlModManager;
 
 /// Utilities for HTML element attributes
 mod attr;
 
 /// reqaz-builtin HTML mods
 pub(crate) mod mods;
-
 
 pub type Html = kuchikiki::NodeRef;
 
@@ -34,14 +33,18 @@ macro_rules! apply_internal_mods {
 }
 
 /// Process HTML using reqaz-builtin mods and kuchikiki
-/// 
+///
 /// # Errors
-/// 
+///
 /// Any mod errors are propagated up to the caller.
 #[inline]
 #[allow(clippy::module_name_repetitions)]
-pub fn process_html(resolver: &SourceResolver, uri: &Uri, html: String) -> Result<String, mods::Error> {
+pub fn process_html(
+    resolver: &SourceResolver,
+    uri: &Uri,
+    html: String,
+) -> Result<String, mods::Error> {
     let dom = kuchikiki::parse_html().one(html);
 
-    apply_internal_mods!(resolver, uri, dom, ["fetch", "css"])
+    apply_internal_mods!(resolver, uri, dom, ["fetch", "css", "component"])
 }

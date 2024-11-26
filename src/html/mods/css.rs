@@ -1,21 +1,20 @@
+use super::Html;
+use super::HtmlMod;
 use core::fmt::Display;
 use eyre::Result;
-use html5ever::{ns, local_name, namespace_url};
 use html5ever::QualName;
+use html5ever::{local_name, namespace_url, ns};
 use lightningcss::error::Error as CssError;
-use lightningcss::error::ParserError;
 use lightningcss::error::MinifyErrorKind;
+use lightningcss::error::ParserError;
 use lightningcss::error::PrinterErrorKind;
 use lightningcss::printer::PrinterOptions;
 use lightningcss::stylesheet::MinifyOptions;
 use lightningcss::stylesheet::ParserOptions;
 use lightningcss::stylesheet::StyleSheet;
-use super::HtmlMod;
-use super::Html;
-
 
 /// The CSS reqaz HTML mod
-/// 
+///
 /// This mod takes no arguments and is constructed
 /// using Default, but it needs a struct to implement
 /// `HtmlMod`.
@@ -32,19 +31,24 @@ fn minify_css(css: &str) -> Result<String, MinifyCssError> {
 
     StyleSheet::parse(css, ParserOptions::default())
         .map_err(|err| MinifyCssError::Parse(err.into_owned()))
-        .and_then(|mut stylesheet|
-            stylesheet.minify(MinifyOptions::default())
+        .and_then(|mut stylesheet| {
+            stylesheet
+                .minify(MinifyOptions::default())
                 .map_err(MinifyCssError::Minify)
                 .map(|()| stylesheet)
-        ).and_then(|stylesheet|
-            stylesheet.to_css(printer_options)
+        })
+        .and_then(|stylesheet| {
+            stylesheet
+                .to_css(printer_options)
                 .map_err(MinifyCssError::Print)
-        ).map(|res| res.code)
+        })
+        .map(|res| res.code)
 }
 
 impl HtmlMod for Mod {
     fn modify(&self, html: super::Html) -> Result<Html, eyre::Error> {
-        let styles: Vec<_> = html.select("style")
+        let styles: Vec<_> = html
+            .select("style")
             .map(|sels| sels.into_iter().collect())
             .unwrap_or_default();
 
@@ -60,10 +64,8 @@ impl HtmlMod for Mod {
                 let binding = html.select_first("head").ok();
                 let head = binding.map(|node_data| node_data.as_node().to_owned());
 
-                let style_node = Html::new_element(
-                    QualName::new(None, ns!(html), local_name!("style")),
-                    vec![]
-                );
+                let style_node =
+                    Html::new_element(QualName::new(None, ns!(html), local_name!("style")), vec![]);
 
                 style_node.append(Html::new_text(css));
 
@@ -74,7 +76,8 @@ impl HtmlMod for Mod {
                 }
 
                 html
-            }).map_err(Into::into)
+            })
+            .map_err(Into::into)
     }
 }
 
@@ -88,7 +91,7 @@ enum MinifyCssError {
     Minify(CssError<MinifyErrorKind>),
 
     /// Errors while printing new CSS string
-    Print(CssError<PrinterErrorKind>)
+    Print(CssError<PrinterErrorKind>),
 }
 
 #[allow(clippy::missing_trait_methods)]
@@ -102,7 +105,7 @@ impl Display for MinifyCssError {
         match self {
             Self::Parse(err) => err.fmt(formatter),
             Self::Minify(err) => err.fmt(formatter),
-            Self::Print(err) => err.fmt(formatter)
+            Self::Print(err) => err.fmt(formatter),
         }
     }
 }
