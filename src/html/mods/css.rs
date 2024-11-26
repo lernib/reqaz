@@ -52,6 +52,10 @@ impl HtmlMod for Mod {
             .map(|sels| sels.into_iter().collect())
             .unwrap_or_default();
 
+        if styles.is_empty() {
+            return Ok(html);
+        }
+
         let mut combined = String::new();
 
         for css_match in styles {

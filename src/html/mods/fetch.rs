@@ -1,19 +1,18 @@
-use core::fmt::Display;
+use super::Html;
+use super::HtmlMod;
 use crate::html::attr::{GetAttr, Href};
 use crate::mediatype::{APPLICATION_OCTET_STREAM, IMG_SVG_XML, TEXT_CSS, TEXT_HTML};
 use crate::source::{ResolverError, SourceResolver};
-use html5ever::{ns, local_name, namespace_url};
+use core::fmt::Display;
 use html5ever::QualName;
+use html5ever::{local_name, namespace_url, ns};
 use http::uri::InvalidUriParts;
 use hyper::Uri;
+use kuchikiki::traits::TendrilSink;
 use kuchikiki::NodeData::DocumentFragment;
 use kuchikiki::NodeRef;
-use kuchikiki::traits::TendrilSink;
 use mediatype::MediaTypeBuf;
 use std::io::Error as IoError;
-use super::HtmlMod;
-use super::Html;
-
 
 /// The Fetch reqaz HTML mod
 pub struct Mod {
@@ -21,17 +20,14 @@ pub struct Mod {
     page_uri: Uri,
 
     /// A source resolver for internal fetches
-    resolver: SourceResolver
+    resolver: SourceResolver,
 }
 
 impl Mod {
     #[allow(clippy::single_call_fn)]
     /// Create a new Fetch mod instance
     pub const fn new(page_uri: Uri, resolver: SourceResolver) -> Self {
-        Self {
-            page_uri,
-            resolver
-        }
+        Self { page_uri, resolver }
     }
 
     /// Fetch an HTML node for an href and return it
@@ -41,47 +37,38 @@ impl Mod {
             .ok_or_else(|| FetchError::InvalidHref(href.clone()))
             .and_then(|element| {
                 match href {
-                    Href::Absolute(_) |
-                    Href::Relative(_) => {
-                        href.append_to_uri(&self.page_uri)
-                            .map_err(FetchError::InvalidUriParts)
-                            .and_then(|uri| {
-                                self.resolver.resolve_source(&uri)
-                                    .map_err(FetchError::ResolverError)
-                                    .map(|resolved| {
-                                        FetchResponse {
-                                            body: resolved.body,
-                                            mime: resolved.mime.into()
-                                        }
-                                    })
-                            })
-                    },
-                    Href::Uri(uri) => {
-                        ureq::get(&uri.to_string())
-                            .call()
-                            .map_err(|err| FetchError::Network(Box::new(err)))
-                            .and_then(|resp| {
-                                let mime = MediaTypeBuf::from_string(resp.content_type().to_owned())
-                                    .unwrap_or_else(|_| APPLICATION_OCTET_STREAM.into());
-                
-                                let mut body = vec![];
-                                
-                                resp.into_reader()
-                                    .read_to_end(&mut body)
-                                    .map_err(FetchError::IoError)
-                                    .map(|_| {
-                                        FetchResponse {
-                                            body,
-                                            mime
-                                        }
-                                    })
-                            })
-                    },
-                    Href::Other(_) => Err(FetchError::InvalidHref(href.clone()))
-                }.map(|resp| (element, resp))
-            }).and_then(|(element, resp)| {
-            insert_response(element, resp)
-                .map_err(FetchError::Insertion)
+                    Href::Absolute(_) | Href::Relative(_) => href
+                        .append_to_uri(&self.page_uri)
+                        .map_err(FetchError::InvalidUriParts)
+                        .and_then(|uri| {
+                            self.resolver
+                                .resolve_source(&uri)
+                                .map_err(FetchError::ResolverError)
+                                .map(|resolved| FetchResponse {
+                                    body: resolved.body,
+                                    mime: resolved.mime.into(),
+                                })
+                        }),
+                    Href::Uri(uri) => ureq::get(&uri.to_string())
+                        .call()
+                        .map_err(|err| FetchError::Network(Box::new(err)))
+                        .and_then(|resp| {
+                            let mime = MediaTypeBuf::from_string(resp.content_type().to_owned())
+                                .unwrap_or_else(|_| APPLICATION_OCTET_STREAM.into());
+
+                            let mut body = vec![];
+
+                            resp.into_reader()
+                                .read_to_end(&mut body)
+                                .map_err(FetchError::IoError)
+                                .map(|_| FetchResponse { body, mime })
+                        }),
+                    Href::Other(_) => Err(FetchError::InvalidHref(href.clone())),
+                }
+                .map(|resp| (element, resp))
+            })
+            .and_then(|(element, resp)| {
+                insert_response(element, resp).map_err(FetchError::Insertion)
             })
     }
 }
@@ -91,50 +78,52 @@ impl Mod {
 #[allow(clippy::single_call_fn)]
 fn get_element_from_extension(ext: &str) -> Option<Html> {
     match ext {
-        "css" | "scss" => {
-            Some(NodeRef::new_element(
-                QualName::new(None, ns!(html), local_name!("style")),
-                vec![]
-            ))
-        },
-        "html" | "svg" => {
-            Some(NodeRef::new(DocumentFragment))
-        },
-        _ => None
+        "css" | "scss" => Some(NodeRef::new_element(
+            QualName::new(None, ns!(html), local_name!("style")),
+            vec![],
+        )),
+        "html" | "svg" => Some(NodeRef::new(DocumentFragment)),
+        _ => None,
     }
 }
 
 /// Insert a response into an element
 #[allow(clippy::single_call_fn)]
 fn insert_response(el: Html, resp: FetchResponse) -> Result<Html, InsertResponseError> {
-    let contents = String::from_utf8(resp.body)
-        .unwrap_or_default();
+    let contents = String::from_utf8(resp.body).unwrap_or_default();
 
     if resp.mime == TEXT_CSS {
         el.append(NodeRef::new_text(contents));
     } else if resp.mime == TEXT_HTML || resp.mime == IMG_SVG_XML {
-        let html = kuchikiki::parse_html()
-            .one(contents);
+        let html =
+            kuchikiki::parse_fragment(QualName::new(None, ns!(html), local_name!("div")), vec![])
+                .one(contents);
 
-        for child in html.children() {
+        let first_child = html
+            .first_child()
+            .ok_or(InsertResponseError(TEXT_HTML.into()))?;
+
+        for child in first_child.children() {
             el.append(child);
         }
     } else {
         return Err(InsertResponseError(resp.mime));
     }
-    
+
     Ok(el)
 }
 
 impl HtmlMod for Mod {
     fn modify(&self, html: Html) -> Result<Html, eyre::Error> {
-        let nib_imports: Vec<_> = html.select(r#"[nib-mod~="fetch"]"#)
+        let nib_imports: Vec<_> = html
+            .select(r#"[nib-mod~="fetch"]"#)
             .map(|sels| sels.into_iter().collect())
             .unwrap_or_default();
 
         for css_match in nib_imports {
             let nib_item = css_match.as_node();
-            let res = nib_item.as_element()
+            let res = nib_item
+                .as_element()
                 .and_then(|nib_el| nib_el.get_attr("href"))
                 .and_then(|href| Href::try_from(href.as_str()).ok())
                 .map(|href| self.perform_fetch(href))
@@ -187,7 +176,7 @@ pub enum FetchError {
     ResolverError(ResolverError),
 
     /// There was an IO problem
-    IoError(IoError)
+    IoError(IoError),
 }
 
 #[allow(clippy::missing_trait_methods)]
@@ -204,7 +193,7 @@ impl Display for FetchError {
             Self::InvalidUriParts(iup) => iup.fmt(formatter),
             Self::Network(neterr) => neterr.fmt(formatter),
             Self::ResolverError(resolver_error) => resolver_error.fmt(formatter),
-            Self::IoError(ioerr) => ioerr.fmt(formatter)
+            Self::IoError(ioerr) => ioerr.fmt(formatter),
         }
     }
 }
@@ -215,5 +204,5 @@ struct FetchResponse {
     body: Vec<u8>,
 
     /// The mime type
-    mime: MediaTypeBuf
+    mime: MediaTypeBuf,
 }
