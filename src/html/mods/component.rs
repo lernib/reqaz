@@ -4,6 +4,8 @@ use super::HtmlMod;
 use crate::html::attr::{GetAttr, Href};
 use crate::mediatype::TEXT_HTML;
 use crate::source::{ResolverError, SourceResolver};
+use html5ever::QualName;
+use html5ever::{local_name, namespace_url, ns};
 use http::uri::InvalidUriParts;
 use http::Uri;
 use kuchikiki::traits::TendrilSink;
@@ -70,11 +72,17 @@ impl Mod {
         let contents = String::from_utf8(resp).or(Err(ComponentModError::LinkNotHtml))?;
 
         // Elements are required to be HTML
-        let html = kuchikiki::parse_html().one(contents);
+        let html =
+            kuchikiki::parse_fragment(QualName::new(None, ns!(html), local_name!("div")), vec![])
+                .one(contents);
+
+        let first_child = html
+            .first_child()
+            .ok_or(InsertResponseError(TEXT_HTML.into()))?;
 
         let el = NodeRef::new(DocumentFragment);
 
-        for child in html.children() {
+        for child in first_child.children() {
             el.append(child);
         }
 
@@ -96,7 +104,7 @@ impl HtmlMod for Mod {
             };
 
             let href = node_el
-                .get_attr("href")
+                .get_attr("data")
                 .and_then(|href| Href::try_from(href.as_str()).ok());
             let props = node_el.get_attr("nib-props");
 
@@ -138,6 +146,12 @@ pub enum ComponentModError {
 
     /// The component was not HTML
     LinkNotHtml,
+}
+
+impl From<InsertResponseError> for ComponentModError {
+    fn from(value: InsertResponseError) -> Self {
+        ComponentModError::Insertion(value)
+    }
 }
 
 #[allow(clippy::missing_trait_methods)]

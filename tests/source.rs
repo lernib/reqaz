@@ -74,3 +74,28 @@ fn source_fetch_css() {
         common::without_newlines(std::str::from_utf8(&out.body).unwrap())
     )
 }
+
+#[test]
+fn source_component_basic_component() {
+    let serve_dir = common::serve_dir();
+    let expected_dir = common::expected_dir();
+
+    let resolver = SourceResolver::new(serve_dir, "reqaz.local".try_into().unwrap());
+
+    let out = resolver
+        .resolve_source(&"/component/basic_component.html".try_into().unwrap())
+        .unwrap();
+
+    let mut expected_file =
+        File::open(expected_dir.join("component/basic_component.html.diff")).unwrap();
+
+    let mut html_content = String::default();
+    expected_file.read_to_string(&mut html_content).unwrap();
+
+    let html_content = common::parse_html_string(&html_content).to_string();
+
+    assert_eq!(
+        common::without_newlines(&html_content),
+        common::without_newlines(std::str::from_utf8(&out.body).unwrap())
+    )
+}

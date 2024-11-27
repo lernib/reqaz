@@ -141,7 +141,7 @@ impl HtmlMod for Mod {
 
 /// Errors possible due to a response insertion
 #[derive(Debug)]
-pub struct InsertResponseError(MediaTypeBuf);
+pub struct InsertResponseError(pub MediaTypeBuf);
 
 #[allow(clippy::missing_trait_methods)]
 #[allow(clippy::absolute_paths)]
