@@ -1397,6 +1397,7 @@ dependencies = [
  "kuchikiki",
  "lightningcss",
  "mediatype",
+ "paste",
  "rsass",
  "serde",
  "serde_json",

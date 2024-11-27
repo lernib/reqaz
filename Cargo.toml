@@ -24,10 +24,18 @@ mediatype = "0.19.18"
 rsass = "0.28.8"
 serde = { version = "1.0.198", features = ["derive"], optional = true }
 serde_json = { version = "1.0.116", optional = true }
-tokio = { version = "1.37.0", features = ["macros", "fs", "net", "rt-multi-thread"] }
+tokio = { version = "1.37.0", features = [
+    "macros",
+    "fs",
+    "net",
+    "rt-multi-thread",
+] }
 ureq = "2.9.6"
 
 [features]
 default = ["cli"]
 cli = ["dep:clap", "dep:serde", "dep:serde_json"]
 serde_json = ["dep:serde_json"]
+
+[dev-dependencies]
+paste = "1"
