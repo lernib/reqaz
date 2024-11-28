@@ -12,6 +12,7 @@ categories = ["template-engine", "web-programming"]
 clap = { version = "4.5.4", features = ["derive"], optional = true }
 color-eyre = { version = "0.6.3" }
 eyre = "0.6.12"
+html-escape = "0.2.13"
 html5ever = "0.26.0"
 http = "1"
 http-body-util = "0.1.1"

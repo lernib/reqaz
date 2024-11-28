@@ -45,5 +45,6 @@ source_test_list![
         component_with_other_content,
         "component/with_other_content.html"
     ],
-    [component_with_props, "component/with_props.html"]
+    [component_with_props, "component/with_props.html"],
+    [title_propped, "component/title_propped.html"]
 ];

@@ -6,9 +6,11 @@ use crate::mediatype::TEXT_HTML;
 use crate::source::{ResolverError, SourceResolver};
 use html5ever::QualName;
 use html5ever::{local_name, namespace_url, ns};
+use html_escape::decode_html_entities;
 use http::uri::InvalidUriParts;
 use http::Uri;
 use kuchikiki::traits::TendrilSink;
+use kuchikiki::ElementData;
 use kuchikiki::NodeData::DocumentFragment;
 use kuchikiki::NodeRef;
 use mediatype::MediaTypeBuf;
@@ -73,22 +75,26 @@ impl Mod {
         let contents = String::from_utf8(resp).or(Err(ComponentModError::LinkNotHtml))?;
 
         // Elements are required to be HTML
-        let html =
-            kuchikiki::parse_fragment(QualName::new(None, ns!(html), local_name!("div")), vec![])
-                .one(contents);
-
-        let first_child = html
-            .first_child()
-            .ok_or(InsertResponseError(TEXT_HTML.into()))?;
-
-        let el = NodeRef::new(DocumentFragment);
-
-        for child in first_child.children() {
-            el.append(child);
-        }
-
-        Ok(el)
+        html_from_string(&contents)
     }
+}
+
+fn html_from_string(s: &str) -> Result<Html, ComponentModError> {
+    let html =
+        kuchikiki::parse_fragment(QualName::new(None, ns!(html), local_name!("div")), vec![])
+            .one(s);
+
+    let first_child = html
+        .first_child()
+        .ok_or(InsertResponseError(TEXT_HTML.into()))?;
+
+    let el = NodeRef::new(DocumentFragment);
+
+    for child in first_child.children() {
+        el.append(child);
+    }
+
+    Ok(el)
 }
 
 /// Insert possible props into locations for an HTML segment
@@ -100,8 +106,45 @@ fn process_props(html: Html, props: HashMap<String, String>) -> Html {
             continue;
         };
 
-        // If it's a param with a name but no value, replace it
-        if &node_el.name.local == "param" {
+        if &node_el.name.local == "title" {
+            // If it's a title, it needs to be handled specially
+            // Get the text content and parse, then replace
+            let content = to_check_el
+                .children()
+                .filter_map(|el| {
+                    // This filter should literally never be needed but heck it type safety
+                    let text_el = el.as_text()?;
+
+                    Some(text_el.borrow().clone())
+                })
+                .reduce(|cur, nxt| cur + &nxt);
+
+            let Some(text_content) = content else {
+                continue;
+            };
+
+            let parsed = decode_html_entities(&text_content);
+
+            let Ok(node) = html_from_string(&parsed) else {
+                // Not gonna handle failed parsing of title contents bc that's stupid
+                continue;
+            };
+
+            let node = process_props(node, props.clone());
+            let title_text = node.to_string();
+
+            // Replace the title node
+            let new_node =
+                NodeRef::new_element(QualName::new(None, ns!(html), local_name!("title")), vec![]);
+
+            let title_text_node = NodeRef::new_text(title_text);
+
+            new_node.append(title_text_node);
+
+            to_check_el.insert_after(new_node);
+            to_check_el.detach();
+        } else if &node_el.name.local == "param" {
+            // If it's a param with a name but no value, replace it
             let Some(name) = node_el.get_attr("name") else {
                 continue;
             };
@@ -125,11 +168,65 @@ fn process_props(html: Html, props: HashMap<String, String>) -> Html {
     html
 }
 
+fn get_props_from_object(node: &Html) -> HashMap<String, String> {
+    node.children()
+        .into_iter()
+        .filter_map(|child| {
+            let Some(node_el) = child.as_element() else {
+                return None;
+            };
+
+            if "param" != &node_el.name.local {
+                return None;
+            };
+
+            let name = node_el.get_attr("name");
+            let value = node_el.get_attr("value");
+
+            name.zip(value)
+        })
+        .collect::<HashMap<_, _>>()
+}
+
+fn get_props_from_link(node: &ElementData) -> HashMap<String, String> {
+    node.attributes
+        .borrow()
+        .map
+        .keys()
+        .into_iter()
+        .filter_map(|attr| {
+            let local = format!("{}", attr.local);
+
+            if !local.starts_with("nib-prop-") {
+                return None;
+            };
+
+            let name = local.replace("nib-prop-", "");
+            let value = node.get_attr(&local);
+
+            value.map(|v| (name, v))
+        })
+        .collect::<HashMap<_, _>>()
+}
+
 impl HtmlMod for Mod {
     fn modify(&self, html: Html) -> Result<Html, super::Error> {
         let components: Vec<_> = html
             .select(r#"object[nib-mod~="component"]"#)
-            .map(|sels| sels.into_iter().collect())
+            .map(|sels| {
+                sels.into_iter()
+                    .chain(
+                        html.select(r#"link[nib-mod~="component"]"#)
+                            .map(|sels| {
+                                sels.into_iter()
+                                    // There is definitely a better way to do this but rn i can't be bothered
+                                    .collect::<Vec<_>>()
+                            })
+                            .unwrap_or_default()
+                            .into_iter(),
+                    )
+                    .collect()
+            })
             .unwrap_or_default();
 
         for component in components {
@@ -138,33 +235,36 @@ impl HtmlMod for Mod {
                 continue;
             };
 
+            let data_prop = match node_el.name.local {
+                local_name!("object") => "data",
+                local_name!("link") => "href",
+                _ => unreachable!(),
+            };
+
             let href = node_el
-                .get_attr("data")
+                .get_attr(data_prop)
                 .and_then(|href| Href::try_from(href.as_str()).ok());
 
-            let props = node
-                .children()
-                .into_iter()
-                .filter_map(|child| {
-                    let Some(node_el) = child.as_element() else {
-                        return None;
-                    };
-
-                    if "param" != &node_el.name.local {
-                        return None;
-                    };
-
-                    let name = node_el.get_attr("name");
-                    let value = node_el.get_attr("value");
-
-                    name.zip(value)
-                })
-                .collect::<HashMap<_, _>>();
+            let props = match node_el.name.local {
+                local_name!("object") => get_props_from_object(node),
+                local_name!("link") => get_props_from_link(node_el),
+                _ => unreachable!(),
+            };
 
             let new_el = href.map(|url| self.perform_fetch(url)).transpose()?;
 
             if let Some(new_el) = new_el {
                 let new_el = process_props(new_el, props);
+
+                let Some(parent) = node.parent() else {
+                    continue;
+                };
+
+                let Some(parent_el) = parent.as_element() else {
+                    continue;
+                };
+
+                println!("new_el_parent: {}", parent_el.name.local);
 
                 node.insert_after(new_el);
                 node.detach();
