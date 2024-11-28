@@ -1,0 +1,13 @@
+<!doctype html>
+
+<html>
+    <head>
+        <title>Example basic component</title>
+    </head>
+
+    <body>
+        <h2>Before</h2>
+        <h1>Example Parameter</h1>
+        <h2>After</h2>
+    </body>
+</html>

@@ -12,6 +12,7 @@ use kuchikiki::traits::TendrilSink;
 use kuchikiki::NodeData::DocumentFragment;
 use kuchikiki::NodeRef;
 use mediatype::MediaTypeBuf;
+use std::collections::{HashMap, VecDeque};
 use std::fmt::Display;
 use std::io::Error as IoError;
 
@@ -90,6 +91,40 @@ impl Mod {
     }
 }
 
+/// Insert possible props into locations for an HTML segment
+fn process_props(html: Html, props: HashMap<String, String>) -> Html {
+    let mut to_check = html.children().into_iter().collect::<VecDeque<_>>();
+
+    while let Some(to_check_el) = to_check.pop_front() {
+        let Some(node_el) = to_check_el.as_element() else {
+            continue;
+        };
+
+        // If it's a param with a name but no value, replace it
+        if &node_el.name.local == "param" {
+            let Some(name) = node_el.get_attr("name") else {
+                continue;
+            };
+
+            if node_el.get_attr("value").is_some() {
+                continue;
+            };
+
+            let value = props.get(&name).cloned().unwrap_or_default();
+
+            to_check_el.insert_after(NodeRef::new_text(value));
+            to_check_el.detach();
+        } else {
+            // Add children
+            for child in to_check_el.children() {
+                to_check.push_back(child);
+            }
+        }
+    }
+
+    html
+}
+
 impl HtmlMod for Mod {
     fn modify(&self, html: Html) -> Result<Html, super::Error> {
         let components: Vec<_> = html
@@ -106,11 +141,31 @@ impl HtmlMod for Mod {
             let href = node_el
                 .get_attr("data")
                 .and_then(|href| Href::try_from(href.as_str()).ok());
-            let props = node_el.get_attr("nib-props");
+
+            let props = node
+                .children()
+                .into_iter()
+                .filter_map(|child| {
+                    let Some(node_el) = child.as_element() else {
+                        return None;
+                    };
+
+                    if "param" != &node_el.name.local {
+                        return None;
+                    };
+
+                    let name = node_el.get_attr("name");
+                    let value = node_el.get_attr("value");
+
+                    name.zip(value)
+                })
+                .collect::<HashMap<_, _>>();
 
             let new_el = href.map(|url| self.perform_fetch(url)).transpose()?;
 
             if let Some(new_el) = new_el {
+                let new_el = process_props(new_el, props);
+
                 node.insert_after(new_el);
                 node.detach();
             }
