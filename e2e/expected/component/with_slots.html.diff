@@ -1,0 +1,15 @@
+<!doctype html>
+
+<html>
+    <head>
+        <title>Example basic component</title>
+    </head>
+
+    <body>
+        <h2>Before</h2>
+        <h1>
+                This text is very <b>jolly</b>
+        </h1>
+        <h2>After</h2>
+    </body>
+</html>

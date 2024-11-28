@@ -98,7 +98,7 @@ fn html_from_string(s: &str) -> Result<Html, ComponentModError> {
 }
 
 /// Insert possible props into locations for an HTML segment
-fn process_props(html: Html, props: HashMap<String, String>) -> Html {
+fn process_props(html: Html, props: ComponentData) -> Html {
     let mut to_check = html.children().into_iter().collect::<VecDeque<_>>();
 
     while let Some(to_check_el) = to_check.pop_front() {
@@ -143,6 +143,14 @@ fn process_props(html: Html, props: HashMap<String, String>) -> Html {
 
             to_check_el.insert_after(new_node);
             to_check_el.detach();
+        } else if &node_el.name.local == "source" {
+            if node_el.get_attr("slot").is_none() {
+                continue;
+            }
+
+            // Slot, insert slot data
+            to_check_el.insert_after(props.slot.clone());
+            to_check_el.detach();
         } else if &node_el.name.local == "param" {
             // If it's a param with a name but no value, replace it
             let Some(name) = node_el.get_attr("name") else {
@@ -153,7 +161,7 @@ fn process_props(html: Html, props: HashMap<String, String>) -> Html {
                 continue;
             };
 
-            let value = props.get(&name).cloned().unwrap_or_default();
+            let value = props.props.get(&name).cloned().unwrap_or_default();
 
             to_check_el.insert_after(NodeRef::new_text(value));
             to_check_el.detach();
@@ -168,8 +176,9 @@ fn process_props(html: Html, props: HashMap<String, String>) -> Html {
     html
 }
 
-fn get_props_from_object(node: &Html) -> HashMap<String, String> {
-    node.children()
+fn get_props_from_object(node: &Html) -> ComponentData {
+    let props = node
+        .children()
         .into_iter()
         .filter_map(|child| {
             let Some(node_el) = child.as_element() else {
@@ -185,11 +194,31 @@ fn get_props_from_object(node: &Html) -> HashMap<String, String> {
 
             name.zip(value)
         })
-        .collect::<HashMap<_, _>>()
+        .collect::<HashMap<_, _>>();
+
+    let slot_children = node.children().into_iter().filter_map(|child| {
+        let Some(node_el) = child.as_element() else {
+            return Some(child);
+        };
+
+        if "param" != &node_el.name.local {
+            return Some(child);
+        };
+
+        None
+    });
+
+    let slot = NodeRef::new(DocumentFragment);
+    for child in slot_children {
+        slot.append(child)
+    }
+
+    ComponentData { props, slot }
 }
 
-fn get_props_from_link(node: &ElementData) -> HashMap<String, String> {
-    node.attributes
+fn get_props_from_link(node: &ElementData) -> ComponentData {
+    let props = node
+        .attributes
         .borrow()
         .map
         .keys()
@@ -206,7 +235,12 @@ fn get_props_from_link(node: &ElementData) -> HashMap<String, String> {
 
             value.map(|v| (name, v))
         })
-        .collect::<HashMap<_, _>>()
+        .collect::<HashMap<_, _>>();
+
+    ComponentData {
+        props,
+        slot: NodeRef::new(DocumentFragment),
+    }
 }
 
 impl HtmlMod for Mod {
@@ -329,4 +363,10 @@ impl Display for ComponentModError {
             }
         }
     }
+}
+
+#[derive(Clone)]
+struct ComponentData {
+    pub props: HashMap<String, String>,
+    pub slot: Html,
 }
