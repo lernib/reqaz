@@ -1,5 +1,6 @@
 use super::Html;
 use super::HtmlMod;
+use super::HtmlModManager;
 use core::fmt::Display;
 use eyre::Result;
 use html5ever::QualName;
@@ -46,7 +47,7 @@ fn minify_css(css: &str) -> Result<String, MinifyCssError> {
 }
 
 impl HtmlMod for Mod {
-    fn modify(&self, html: super::Html) -> Result<Html, eyre::Error> {
+    fn modify(&self, html: super::Html, _manager: &HtmlModManager) -> Result<Html, eyre::Error> {
         let styles: Vec<_> = html
             .select("style")
             .map(|sels| sels.into_iter().collect())

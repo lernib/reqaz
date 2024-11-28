@@ -47,5 +47,6 @@ source_test_list![
     ],
     [component_with_props, "component/with_props.html"],
     [title_propped, "component/title_propped.html"],
-    [component_slotted, "component/with_slots.html"]
+    [component_slotted, "component/with_slots.html"],
+    [comp_has_comp, "component/comp_has_comp.html"]
 ];

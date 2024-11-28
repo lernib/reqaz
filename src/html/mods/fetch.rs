@@ -1,5 +1,6 @@
 use super::Html;
 use super::HtmlMod;
+use super::HtmlModManager;
 use crate::html::attr::{GetAttr, Href};
 use crate::mediatype::{APPLICATION_OCTET_STREAM, IMG_SVG_XML, TEXT_CSS, TEXT_HTML};
 use crate::source::{ResolverError, SourceResolver};
@@ -114,7 +115,7 @@ fn insert_response(el: Html, resp: FetchResponse) -> Result<Html, InsertResponse
 }
 
 impl HtmlMod for Mod {
-    fn modify(&self, html: Html) -> Result<Html, eyre::Error> {
+    fn modify(&self, html: Html, _manager: &HtmlModManager) -> Result<Html, eyre::Error> {
         let nib_imports: Vec<_> = html
             .select(r#"[nib-mod~="fetch"]"#)
             .map(|sels| sels.into_iter().collect())

@@ -26,7 +26,7 @@ pub type Error = eyre::Report;
 /// The reqaz HTML mod trait
 pub trait HtmlMod {
     /// Modify some HTML, and return the result.
-    fn modify(&self, html: Html) -> Result<Html, Error>;
+    fn modify(&self, html: Html, mod_manager: &HtmlModManager) -> Result<Html, Error>;
 }
 
 /// An HTML mod manager, used to load mods ahead of time without
@@ -79,6 +79,18 @@ impl HtmlModManager {
     pub fn apply_mod(&self, html: Html, mod_name: &str) -> Result<Html, Error> {
         self.get_mod(mod_name)
             .ok_or(eyre!("Mod does not exist"))
-            .and_then(|mod_| mod_.modify(html))
+            .and_then(|mod_| mod_.modify(html, self))
+    }
+
+    /// Apply all cached mods
+    pub fn apply_mods(&self, html: Html) -> Result<Html, Error> {
+        let mods = self.mod_cache.keys();
+
+        let mut out = html;
+        for mod_name in mods {
+            out = self.apply_mod(out, mod_name)?;
+        }
+
+        Ok(out)
     }
 }

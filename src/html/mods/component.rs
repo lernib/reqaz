@@ -1,6 +1,7 @@
 use super::fetch::InsertResponseError;
 use super::Html;
 use super::HtmlMod;
+use super::HtmlModManager;
 use crate::html::attr::{GetAttr, Href};
 use crate::mediatype::TEXT_HTML;
 use crate::source::{ResolverError, SourceResolver};
@@ -244,7 +245,7 @@ fn get_props_from_link(node: &ElementData) -> ComponentData {
 }
 
 impl HtmlMod for Mod {
-    fn modify(&self, html: Html) -> Result<Html, super::Error> {
+    fn modify(&self, html: Html, manager: &HtmlModManager) -> Result<Html, super::Error> {
         let components: Vec<_> = html
             .select(r#"object[nib-mod~="component"]"#)
             .map(|sels| {
@@ -290,15 +291,8 @@ impl HtmlMod for Mod {
             if let Some(new_el) = new_el {
                 let new_el = process_props(new_el, props);
 
-                let Some(parent) = node.parent() else {
-                    continue;
-                };
-
-                let Some(parent_el) = parent.as_element() else {
-                    continue;
-                };
-
-                println!("new_el_parent: {}", parent_el.name.local);
+                // Apply mods to element
+                let new_el = manager.apply_mods(new_el)?;
 
                 node.insert_after(new_el);
                 node.detach();
